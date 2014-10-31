@@ -3,6 +3,8 @@
 # Compatible with Python 2
 import codecs,collections,os,io,re
 
+class ParseError(Exception): pass
+
 class ConfParser:
 	def __init__(self,filename='httpd.conf'):
 		self.filename=os.path.expanduser(filename)
@@ -51,7 +53,7 @@ class ConfParser:
 					add_arg()
 					q=None
 				elif c: w.write(c)
-		if q or f: raise server.ServerException('Error parsing arguments.')
+		if q or f: raise ParseError('Error parsing arguments.')
 		return a
 	def new_server(self,arg=''):
 		self.server={
@@ -131,7 +133,7 @@ class ConfParser:
 		elif cmd=='default':
 			self.host['default']=args.popleft().split(',')
 		else:
-			raise server.ServerException('Unknown command.')
+			raise ParseError('Unknown command.')
 
 def parse_mime(filename='mime.conf'):
 	filename=os.path.expanduser(filename)
