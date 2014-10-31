@@ -1,0 +1,14 @@
+### Mime config ###
+# *type*	*extensions*	*expirations*
+image/jpeg	jpg,jpeg	2592000
+image/png	png		2592000
+image/x-icon	ico		2592000
+image/gif	gif		2592000
+text/html	htm,html	2592000
+text/html	php
+text/css	css		2592000
+text/javascript	js		2592000
+application/x-shockwave-flash	swf	2592000
+text/plain	txt,c,bat,py	2592000
+application/pdf	pdf		2592000
+text/css	less

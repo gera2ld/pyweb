@@ -1,0 +1,8 @@
+server 0.0.0.0:80
+#gzip text,image
+errdocs 0,999 /error
+fcgi 127.0.0.1:9000 php
+
+host geraldl.local
+rewrite / /index.html
+alias / c:/htdocs
