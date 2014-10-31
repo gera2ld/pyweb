@@ -366,6 +366,7 @@ class HTTPHandler:
 				traceback.print_exc()
 				break
 			if self.close_connection: break
+		self.writer.close()
 	@asyncio.coroutine
 	def handle_one_request(self):
 		self.status=200,'OK'
