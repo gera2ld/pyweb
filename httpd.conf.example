@@ -4,5 +4,5 @@ errdocs 0,999 /error
 fcgi 127.0.0.1:9000 php
 
 host geraldl.local
-rewrite / /index.html
+rewrite ^/$ /index.html
 alias / c:/htdocs

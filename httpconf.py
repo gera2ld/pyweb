@@ -21,7 +21,8 @@ class ConfParser:
 			except Exception as e:
 				logging.error('Error parsing config:\n\t%s\nMessage: %s',line,e)
 		return self.conf
-	def split_args(self,s,allow_transfer=False):	# allow_transfer: '\x'=>'x'
+	def split_args(self,s,allow_transfer=False):
+		# allow_transfer: '\x'=>'x'
 		def add_arg():
 			m=w.getvalue()
 			if m: a.append(m)

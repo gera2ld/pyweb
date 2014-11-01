@@ -164,7 +164,7 @@ class HTTPHandler:
 	def rewrite_path(self,path=None):
 		if path is None: path=self.path
 		for i in self.conf.get_rewrite(self.host):
-			p,n=i[0].subn(i[1],path[1:])
+			p,n=i[0].subn(i[1],path)
 			if n>0:
 				path=urllib.parse.urljoin(path,p)
 				break
