@@ -110,7 +110,7 @@ class ConfParser:
 		elif cmd=='rewrite':
 			self.host['rewrite'].append((
 				re.compile(args.popleft()),
-				args.popleft().replace('$','\\'),
+				args.popleft(),
 			))
 		elif cmd=='alias':
 			a=args.popleft().replace('\\','/')

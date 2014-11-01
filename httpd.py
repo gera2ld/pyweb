@@ -2,7 +2,7 @@
 # coding=utf-8
 # Author: Gerald <gera2ld@163.com>
 # Require: Python 3.4+
-import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,io,gzip,logging,time,stat
+import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,io,gzip,logging,time,stat,re
 from . import fcgi
 BRIEF_PAGE="<!DOCTYPE html><html><head>\
 <meta charset='utf-8'><title>%s</title></head><body>\
@@ -162,9 +162,19 @@ class HTTPHandler:
 		env['SCRIPT_NAME']=''
 		asyncio.async(self.handle())
 	def rewrite_path(self,path=None):
+		def sub_url(m):
+			def sub_items(m):
+				k=int(m.group(1) or m.group(2))
+				if k>0 and k<=l:
+					return items[k-1]
+				else:
+					return ''
+			items=m.groups()
+			l=len(items)
+			return re.sub(r'\$(?:(\d+)|\{(\d+)\})',sub_items,rule[1])
 		if path is None: path=self.path
-		for i in self.conf.get_rewrite(self.host):
-			p,n=i[0].subn(i[1],path)
+		for rule in self.conf.get_rewrite(self.host):
+			p,n=rule[0].subn(sub_url,path)
 			if n>0:
 				path=urllib.parse.urljoin(path,p)
 				break
@@ -380,6 +390,7 @@ class HTTPHandler:
 		env['SERVER_PROTOCOL']=self.request_version
 		env['REQUEST_METHOD']=self.command
 		env['CONTENT_TYPE']=self._headers.get('Content-Type')
+		env['CONTENT_LENGTH']=self._headers.get('Content-Length')
 		for k, v in self._headers.items():
 			k=k.replace('-','_').upper(); v=v.strip()
 			if k in env: continue
@@ -560,10 +571,10 @@ class HTTPHandler:
 		except asyncio.TimeoutError:
 			self.send_error(500,'Cannot connect to FCGI server at %s, port %d' % proxy_pass)
 		else:
+			l=0
 			if self.environ['REQUEST_METHOD']=='POST':
-				l=int(self.environ['CONTENT_LENGTH'])
-			else:
-				l=0
+				try: l=int(self.environ['CONTENT_LENGTH'])
+				except: pass
 			if l:
 				data=yield from asyncio.wait_for(self.reader.read(l), self.conf.timeout)
 			else:
