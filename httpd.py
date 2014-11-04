@@ -4,10 +4,6 @@
 # Require: Python 3.4+
 import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,io,gzip,logging,time,stat,re
 from . import fcgi
-BRIEF_PAGE="<!DOCTYPE html><html><head>\
-<meta charset='utf-8'><title>%s</title></head><body>\
-<table style='height:100%%;width:100%%;text-align:center;valign:center'>\
-<tr><td><b>%s</b><br>%s</td></tr></table></body></html>"
 PAGE_HEADER="<!DOCTYPE html><html><head>\
 <meta name=viewport content='width=device-width'>\
 <meta charset=utf-8><title>%s</title><style>\
@@ -149,6 +145,7 @@ class HTTPHandler:
 		self.writer=writer
 		self.conf=writer.transport._server.conf
 		self.mime=writer.transport._server.mime
+		self.fcgi_handlers=writer.transport._server.fcgi_handlers
 		self.remote_addr=writer.get_extra_info('peername')
 		self.local_addr=writer.get_extra_info('sockname')
 		env=self.base_environ={}
@@ -565,21 +562,20 @@ class HTTPHandler:
 			'SERVER_SOFTWARE':self.server_version,
 			'REDIRECT_STATUS':self.status[0],
 			})
-		handler=fcgi.FCGI(proxy_pass,self.fcgi_write,self.fcgi_err)
-		try:
-			yield from handler.connect()
-		except asyncio.TimeoutError:
-			self.send_error(500,'Cannot connect to FCGI server at %s, port %d' % proxy_pass)
+		# FCGI works in a single thread, so just one request for one application
+		handler=self.fcgi_handlers.get(proxy_pass)
+		if handler is None:
+			handler=self.fcgi_handlers[proxy_pass]=fcgi.FCGIRequest(proxy_pass)
+		l=0
+		if self.environ['REQUEST_METHOD']=='POST':
+			try: l=int(self.environ['CONTENT_LENGTH'])
+			except: pass
+		if l:
+			data=yield from asyncio.wait_for(self.reader.read(l), self.conf.timeout)
 		else:
-			l=0
-			if self.environ['REQUEST_METHOD']=='POST':
-				try: l=int(self.environ['CONTENT_LENGTH'])
-				except: pass
-			if l:
-				data=yield from asyncio.wait_for(self.reader.read(l), self.conf.timeout)
-			else:
-				data=None
-			yield from handler.fcgi_run(
-				filter(lambda x:not x[0].startswith('gehttpd.'),self.environ.items()),
-				data
-			)
+			data=None
+		yield from handler.fcgi_run(
+			self.fcgi_write, self.fcgi_err,
+			filter(lambda x:not x[0].startswith('gehttpd.'),self.environ.items()),
+			data
+		)

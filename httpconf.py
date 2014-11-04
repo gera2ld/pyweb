@@ -210,5 +210,6 @@ class Config:
 		self.servers={}
 		for p in self.conf:
 			self.servers[p]=ServerConfig(self.conf[p])
+		self.fcgi_handlers={}
 	def get_conf(self, port):
 		return self.servers.get(port)

@@ -16,6 +16,7 @@ if __name__=='__main__':
 		server=loop.run_until_complete(coro)
 		server.conf=s
 		server.mime=conf.mime
+		server.fcgi_handlers=conf.fcgi_handlers
 		for s in server.sockets:
 			logging.info('Serving on %s, port %d',*s.getsockname()[:2])
 	loop.run_forever()
