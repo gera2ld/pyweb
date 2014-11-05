@@ -1,6 +1,6 @@
 #!python
 # coding=utf-8
-import struct,io,asyncio
+import struct,io,asyncio,os
 
 # Reference:
 # http://www.fastcgi.com/drupal/node/6?q=node/22
@@ -43,6 +43,10 @@ class FCGI:
 		self.proxy_pass=proxy_pass
 		self.req_id=req_id
 		self.reader=self.writer=None
+	def close(self):
+		if self.writer:
+			self.writer.close()
+			self.writer=None
 	def build_record(self, type, data=None, allowEmpty=True):
 		if isinstance(data,tuple):
 			f,L=data
@@ -124,5 +128,9 @@ class FCGIRequest:
 	@asyncio.coroutine
 	def fcgi_run(self, *k):
 		worker=yield from self.queue.get()
-		yield from worker.fcgi_run(*k)
-		self.queue.put_nowait(worker)
+		try: yield from worker.fcgi_run(*k)
+		except Exception as e:
+			worker.close()
+			raise e
+		finally:
+			self.queue.put_nowait(worker)

@@ -149,7 +149,6 @@ class HTTPHandler:
 		self.remote_addr=writer.get_extra_info('peername')
 		self.local_addr=writer.get_extra_info('sockname')
 		env=self.base_environ={}
-		env['SERVER_NAME']=self.server_version
 		env['GATEWAY_INTERFACE'] = 'CGI/1.1'
 		env['SERVER_ADDR']=self.local_addr[0]
 		env['SERVER_PORT']=str(self.local_addr[1])
@@ -175,7 +174,9 @@ class HTTPHandler:
 			if n>0:
 				path=urllib.parse.urljoin(path,p)
 				break
+		self.environ['DOCUMENT_URI']=path
 		path,_,query=path.partition('?')
+		# TODO add PATH_INFO
 		self.environ['SCRIPT_NAME']=urllib.parse.unquote(path)
 		self.environ['QUERY_STRING']=query
 		self.path=path
@@ -396,15 +397,16 @@ class HTTPHandler:
 				env[k] += ','+v	 # comma-separate multiple headers
 			else:
 				env[k] = v
-		# SCRIPT_NAME may be changed by rewrite later
-		env['PATH_INFO']=env['SCRIPT_NAME']=self.path
-		self.host=env.get('HTTP_HOST')
+		env['REQUEST_URI']=self.path
+		self.host=env.get('HTTP_HOST').partition(':')[0]
 		self.buffer=ChunkedBuffer(self.send_headers,self.writer,self.bufsize)
+		# SCRIPT_NAME and QUERY_STRING will be set after REWRITE
 		self.rewrite_path()
 		self.get_real_path()
 		yield from self.handle_file()
 		yield from self.buffer.close()
-		logging.info('%s "%s" %d %d', self.host, self.requestline, self.status[0], self.buffer.bytes_sent)
+		logging.info('%s "%s" %d %d', env.get('HTTP_HOST','-'),
+				self.requestline, self.status[0], self.buffer.bytes_sent)
 	@asyncio.coroutine
 	def handle_file(self, path=None):
 		path=yield from self.find_file(path,self.conf.get_default(self.host))
@@ -491,7 +493,7 @@ class HTTPHandler:
 			self.headers['Content-Type']='text/html'
 			if message is None: message=self.responses.get(code,'???')
 			yield from self.write(PAGE_HEADER % ('Error...','Error response'))
-			yield from self.write('<p>Error code: %d</p><p>Message: %s.</p>' % (code,message))
+			yield from self.write('<p>Error code: %d</p><p>Message: %s</p>' % (code,message))
 			yield from self.write(PAGE_FOOTER % '')
 	@asyncio.coroutine
 	def list_dir(self, rpath, pre=''):
@@ -499,7 +501,7 @@ class HTTPHandler:
 		except:
 			yield from self.send_error(404)
 			return
-		dpath=self.environ['PATH_INFO'].rstrip('/')
+		dpath=self.path.rstrip('/')
 		yield from self.write(PAGE_HEADER % ('Directory listing for '+dpath,'Directory Listing'))
 		ds=dpath.split('/')
 		last=ds.pop()
@@ -556,9 +558,8 @@ class HTTPHandler:
 	def fcgi_handle(self, path, proxy_pass):
 		self.environ.update({
 			'SCRIPT_FILENAME':os.path.abspath(path),
-			'REQUEST_URI':self.path,
-			'DOCUMENT_URI':self.environ['PATH_INFO'],
 			'DOCUMENT_ROOT':os.path.abspath(self.conf.get_root(self.environ.get('HTTP_HOST'))),
+			'SERVER_NAME':self.host,
 			'SERVER_SOFTWARE':self.server_version,
 			'REDIRECT_STATUS':self.status[0],
 			})
@@ -574,8 +575,11 @@ class HTTPHandler:
 			data=yield from asyncio.wait_for(self.reader.read(l), self.conf.timeout)
 		else:
 			data=None
-		yield from handler.fcgi_run(
-			self.fcgi_write, self.fcgi_err,
-			filter(lambda x:not x[0].startswith('gehttpd.'),self.environ.items()),
-			data
-		)
+		try:
+			yield from handler.fcgi_run(
+				self.fcgi_write, self.fcgi_err,
+				filter(lambda x:not x[0].startswith('gehttpd.'),self.environ.items()),
+				data
+			)
+		except ConnectionRefusedError:
+			yield from self.send_error(500, "Failed connecting to FCGI server!")
