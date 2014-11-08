@@ -180,6 +180,7 @@ class HTTPHandler:
 		self.environ['SCRIPT_NAME']=urllib.parse.unquote(path)
 		self.environ['QUERY_STRING']=query
 		self.path=path
+		logging.debug('Rewrited path: %s',path)
 	def get_real_path(self,path=None):
 		if path is None: path=self.path
 		path=os.path.normpath(path).replace('\\','/')
@@ -190,6 +191,7 @@ class HTTPHandler:
 				realpath=os.path.join(i[1],path[len(i[0]):]).replace('\\','/')
 				break
 		self.real_path=realpath
+		logging.debug('Real path: %s',realpath)
 	def send_response_only(self, code, message=None):
 		"""Send the response header only."""
 		if message is None:

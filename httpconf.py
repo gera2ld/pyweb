@@ -134,7 +134,7 @@ class ConfParser:
 		elif cmd=='default':
 			self.host['default']=args.popleft().split(',')
 		else:
-			raise ParseError('Unknown command.')
+			raise ParseError('Unknown command: %s' % cmd)
 
 def parse_mime(filename='mime.conf'):
 	filename=os.path.expanduser(filename)
