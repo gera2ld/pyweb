@@ -177,9 +177,8 @@ class HTTPHandler:
 		self.environ['DOCUMENT_URI']=path
 		path,_,query=path.partition('?')
 		# TODO add PATH_INFO
-		self.environ['SCRIPT_NAME']=urllib.parse.unquote(path)
+		self.environ['SCRIPT_NAME']=self.path=urllib.parse.unquote(path)
 		self.environ['QUERY_STRING']=query
-		self.path=path
 		logging.debug('Rewrited path: %s',path)
 	def get_real_path(self,path=None):
 		if path is None: path=self.path
