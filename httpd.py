@@ -368,7 +368,7 @@ class HTTPHandler:
 		while True:
 			try:
 				yield from self.handle_one_request()
-			except asyncio.TimeoutError:
+			except (asyncio.TimeoutError,ConnectionAbortedError):
 				break
 			except:
 				import traceback
@@ -399,7 +399,10 @@ class HTTPHandler:
 			else:
 				env[k] = v
 		env['REQUEST_URI']=self.path
-		self.host=env.get('HTTP_HOST').partition(':')[0]
+		self.host=env.get('HTTP_HOST')
+		if self.host:
+			i=self.host.find(':')
+			if i>0: self.host=self.host[:i]
 		self.buffer=ChunkedBuffer(self.send_headers,self.writer,self.bufsize)
 		# SCRIPT_NAME and QUERY_STRING will be set after REWRITE
 		self.rewrite_path()
@@ -560,7 +563,7 @@ class HTTPHandler:
 		self.environ.update({
 			'SCRIPT_FILENAME':os.path.abspath(path),
 			'DOCUMENT_ROOT':os.path.abspath(self.conf.get_root(self.environ.get('HTTP_HOST'))),
-			'SERVER_NAME':self.host,
+			'SERVER_NAME':self.host or '',
 			'SERVER_SOFTWARE':self.server_version,
 			'REDIRECT_STATUS':self.status[0],
 			})
