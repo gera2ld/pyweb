@@ -86,11 +86,11 @@ class FCGI:
 	@asyncio.coroutine
 	def fcgi_parse(self, write_out, write_err):
 		while True:
-			header=yield from self.reader.read(8)
+			header=yield from self.reader.readexactly(8)
 			version,type,res_id,length,padding=(
 					struct.unpack('!BBHHBx',header))
-			data=yield from self.reader.read(length)
-			yield from self.reader.read(padding)
+			data=yield from self.reader.readexactly(length)
+			yield from self.reader.readexactly(padding)
 			if (version!=FCGI_VERSION_1 or res_id!=self.req_id): continue
 			if type==FCGI_END_REQUEST:
 				#sapp,spro=struct.unpack('!IB3x',data)
