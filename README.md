@@ -6,5 +6,5 @@ Usage
 ---
 Config files (`httpd.conf` and `mime.conf`) should be put in `~/.gerald` first.
 
-	$ git clone https://git.oschina.net/gerald/httpd.git
+	$ git clone https://github.com/gera2ld/pyhttpd.git
 	$ python -m httpd
