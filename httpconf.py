@@ -1,7 +1,7 @@
 #!python
 # coding=utf-8
 # Compatible with Python 2
-import codecs,collections,os,io,re
+import codecs,collections,os,io,re,logging
 
 class ParseError(Exception): pass
 
@@ -12,14 +12,20 @@ class ConfParser:
 		self.conf={}
 		self.server=None
 		self.host=None
-		for line in codecs.open(self.filename,encoding='utf-8'):
-			line=line.rstrip()
-			if not line or line[0]=='#': continue
-			try:
-				args=self.split_args(line)
-				self.parse_conf_line(args)
-			except Exception as e:
-				logging.error('Error parsing config:\n\t%s\nMessage: %s',line,e)
+		try:
+			f=codecs.open(self.filename,encoding='utf-8')
+		except:
+			pass
+		else:
+			for line in f:
+				line=line.rstrip()
+				if not line or line[0]=='#': continue
+				try:
+					args=self.split_args(line)
+					self.parse_conf_line(args)
+				except Exception as e:
+					logging.error('Error parsing config:\n\t%s\nMessage: %s',line,e)
+			f.close()
 		return self.conf
 	def split_args(self,s,allow_transfer=False):
 		# allow_transfer: '\x'=>'x'
@@ -62,6 +68,8 @@ class ConfParser:
 			'fcgi':{},
 			'gzip':['text'],
 			'timeout':10,
+			'threads':40,
+			'loglevel':2,
 		}
 		h,_,p=arg.partition(':')
 		if not h: h='0.0.0.0'
@@ -95,6 +103,8 @@ class ConfParser:
 			self.new_host(args.popleft())
 		elif cmd=='threads':
 			self.server['threads']=int(args.popleft())
+		elif cmd=='loglevel':
+			self.server['loglevel']=int(args.popleft())
 		elif cmd=='fcgi':
 			l,_,p=args.popleft().partition(':')
 			l=l,int(p)
@@ -139,20 +149,26 @@ class ConfParser:
 def parse_mime(filename='mime.conf'):
 	filename=os.path.expanduser(filename)
 	mime={}
-	for line in codecs.open(filename,encoding='utf-8'):
-		line=line.rstrip()
-		if not line or line[0]=='#': continue
-		args=list(filter(None,line.split()))
-		l=len(args)
-		if l<2 or l>3: continue
-		try:
-			if l==2: args.append(0)
-			else: args[2]=int(args[2])
-		except:
-			continue
-		t=args[0],args[2]
-		for i in args[1].split(','):
-			mime[i]=t
+	try:
+		f=codecs.open(filename,encoding='utf-8')
+	except:
+		pass
+	else:
+		for line in f:
+			line=line.rstrip()
+			if not line or line[0]=='#': continue
+			args=list(filter(None,line.split()))
+			l=len(args)
+			if l<2 or l>3: continue
+			try:
+				if l==2: args.append(0)
+				else: args[2]=int(args[2])
+			except:
+				continue
+			t=args[0],args[2]
+			for i in args[1].split(','):
+				mime[i]=t
+		f.close()
 	return mime
 
 class ServerConfig:

@@ -145,6 +145,8 @@ class HTTPHandler:
 		self.writer=writer
 		self.conf=writer.transport._server.conf
 		self.mime=writer.transport._server.mime
+		self.logger=logging.getLogger(self.conf.get('server'))
+		self.logger.setLevel(self.conf.get('loglevel')*10)
 		self.fcgi_handlers=writer.transport._server.fcgi_handlers
 		self.remote_addr=writer.get_extra_info('peername')
 		self.local_addr=writer.get_extra_info('sockname')
@@ -179,7 +181,7 @@ class HTTPHandler:
 		# TODO add PATH_INFO
 		self.environ['SCRIPT_NAME']=self.path=urllib.parse.unquote(path)
 		self.environ['QUERY_STRING']=query
-		logging.debug('Rewrited path: %s',path)
+		self.logger.debug('Rewrited path: %s',path)
 	def get_real_path(self,path=None):
 		if path is None: path=self.path
 		path=os.path.normpath(path).replace('\\','/')
@@ -190,7 +192,7 @@ class HTTPHandler:
 				realpath=os.path.join(i[1],path[len(i[0]):]).replace('\\','/')
 				break
 		self.real_path=realpath
-		logging.debug('Real path: %s',realpath)
+		self.logger.debug('Real path: %s',realpath)
 	def send_response_only(self, code, message=None):
 		"""Send the response header only."""
 		if message is None:
@@ -409,7 +411,7 @@ class HTTPHandler:
 		self.get_real_path()
 		yield from self.handle_file()
 		yield from self.buffer.close()
-		logging.info('%s "%s" %d %d', env.get('HTTP_HOST','-'),
+		self.logger.info('%s "%s" %d %d', env.get('HTTP_HOST','-'),
 				self.requestline, self.status[0], self.buffer.bytes_sent)
 	@asyncio.coroutine
 	def handle_file(self, path=None):
@@ -557,7 +559,7 @@ class HTTPHandler:
 	def fcgi_err(self, data):
 		if isinstance(data,bytes):
 			data=data.decode(self.encoding,'replace')
-		logging.warning(data)
+		self.logger.warning(data)
 	@asyncio.coroutine
 	def fcgi_handle(self, path, proxy_pass):
 		self.environ.update({
