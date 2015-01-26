@@ -205,8 +205,6 @@ class ServerConfig:
 		return self.get_rule('headers',host,[])
 	def get_default(self, host):
 		return self.get_rule('default',host,[])
-	def get_root(self, host):	# for FCGI::DOCUMENT_ROOT
-		return self.get_rule('root',host,[])
 	def get_errdocs(self, host):
 		return self.get_rule('errdocs',host,[])
 	def get_fcgi(self):

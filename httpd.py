@@ -187,9 +187,11 @@ class HTTPHandler:
 		path=os.path.normpath(path).replace('\\','/')
 		f=path+'/'
 		realpath=None
+		self.doc_root=None
 		for i in self.conf.get_alias(self.host):
 			if f.startswith(i[0]):
 				realpath=os.path.join(i[1],path[len(i[0]):]).replace('\\','/')
+				self.doc_root=i[1]
 				break
 		self.real_path=realpath
 		self.logger.debug('Real path: %s',realpath)
@@ -564,7 +566,7 @@ class HTTPHandler:
 	def fcgi_handle(self, path, proxy_pass):
 		self.environ.update({
 			'SCRIPT_FILENAME':os.path.abspath(path),
-			'DOCUMENT_ROOT':os.path.abspath(self.conf.get_root(self.environ.get('HTTP_HOST'))),
+			'DOCUMENT_ROOT':self.doc_root or '',
 			'SERVER_NAME':self.host or '',
 			'SERVER_SOFTWARE':self.server_version,
 			'REDIRECT_STATUS':self.status[0],
