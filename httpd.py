@@ -415,6 +415,14 @@ class HTTPHandler:
 		yield from self.buffer.close()
 		self.logger.info('%s "%s" %d %d', env.get('HTTP_HOST','-'),
 				self.requestline, self.status[0], self.buffer.bytes_sent)
+	def cache_control(self, path):
+		st=os.stat(path)
+		self.headers['Last-Modified']=self.date_time_string(st.st_mtime)
+		lm=self.environ.get('HTTP_IF_MODIFIED_SINCE')
+		if lm and self.date_time_compare(lm,st.st_mtime):
+			self.status=304,
+			return True
+		return False
 	@asyncio.coroutine
 	def handle_file(self, path=None):
 		path=yield from self.find_file(path,self.conf.get_default(self.host))
@@ -424,20 +432,14 @@ class HTTPHandler:
 		# FCGI
 		eh=self.conf.get_fcgi().get(ext)
 		if eh:
-			self.headers['Content-Type']='text/html'
 			yield from self.fcgi_handle(path,eh)
 			return
 		# File
 		ct=self.mime.get(ext)
 		if ct:
 			if ct[1]:
-				mt=os.stat(path)[stat.ST_MTIME]
 				self.headers['Cache-Control']='max-age=%d, must-revalidate' % ct[1]
-				self.headers['Last-Modified']=self.date_time_string(mt)
-				lm=self.environ.get('HTTP_IF_MODIFIED_SINCE')
-				if lm and self.date_time_compare(lm,mt):
-					self.status=304,
-					return
+				if self.cache_control(path): return
 			self.headers['Content-Type']=ct[0]
 			yield from self.send_file(path)
 		else:
@@ -472,7 +474,7 @@ class HTTPHandler:
 				self.send_error(400)
 			else:
 				self.headers['Content-Range']='bytes %d-%d/%d' % (a0,a1,fs)
-				self.headers['Last-Modified']=self.date_time_string(os.stat(path)[stat.ST_MTIME])
+				if self.cache_control(path): return
 				self.status=206,
 				yield from self.send_file(path,a0,l)
 		else:
