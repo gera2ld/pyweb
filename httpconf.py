@@ -106,7 +106,7 @@ class ConfParser:
 		elif cmd=='loglevel':
 			self.server['loglevel']=int(args.popleft())
 		elif cmd=='timeout':
-			self.server['timeout']=int(args.popleft())
+			self.server['timeout']=int(args.popleft())/1000
 		elif cmd=='fcgi':
 			l,_,p=args.popleft().partition(':')
 			l=l,int(p)
