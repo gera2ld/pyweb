@@ -413,7 +413,7 @@ class HTTPHandler:
 		self.get_real_path()
 		yield from self.handle_file()
 		yield from self.buffer.close()
-		self.logger.info('%s "%s" %d %d', env.get('HTTP_HOST','-'),
+		self.logger.info('%s->%s "%s" %d %d', env['REMOTE_ADDR'], env.get('HTTP_HOST','-'),
 				self.requestline, self.status[0], self.buffer.bytes_sent)
 	def cache_control(self, path):
 		st=os.stat(path)
