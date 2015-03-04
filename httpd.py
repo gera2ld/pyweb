@@ -18,10 +18,11 @@ GMT='%a, %d %b %Y %H:%M:%S GMT'
 
 class ChunkedBuffer:
 	chunked=False
-	def __init__(self,init_flush,writer,bufsize):
+	def __init__(self,init_flush,writer,bufsize,logger):
 		self.init_flush=init_flush
 		self.writer=writer
 		self.bufsize=bufsize
+		self.logger=logger
 		self.first_flush=True
 		self.buffer=io.BytesIO()
 		self.clear()
@@ -62,7 +63,10 @@ class ChunkedBuffer:
 				self.send(b'\r\n')
 			self.buffer.truncate(0)
 			self.buffer.seek(0)
-			yield from self.writer.drain()
+			try:
+				yield from self.writer.drain()
+			except Exception as e:
+				self.logger.debug(str(e))
 	@asyncio.coroutine
 	def close(self):
 		self.more=False
@@ -387,7 +391,10 @@ class HTTPHandler:
 		self.headers_sent=False
 		self.headers=http.client.HTTPMessage()
 		self.first_write=True
-		r=yield from self.parse_request()
+		try:
+			r=yield from self.parse_request()
+		except:
+			r=False
 		if not r: return
 		env=self.environ=self.base_environ.copy()
 		env['SERVER_PROTOCOL']=self.request_version
@@ -407,7 +414,7 @@ class HTTPHandler:
 		if self.host:
 			i=self.host.find(':')
 			if i>0: self.host=self.host[:i]
-		self.buffer=ChunkedBuffer(self.send_headers,self.writer,self.bufsize)
+		self.buffer=ChunkedBuffer(self.send_headers,self.writer,self.bufsize,self.logger)
 		# SCRIPT_NAME and QUERY_STRING will be set after REWRITE
 		self.rewrite_path()
 		self.get_real_path()
