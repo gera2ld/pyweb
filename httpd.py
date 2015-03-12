@@ -2,8 +2,9 @@
 # coding=utf-8
 # Author: Gerald <gera2ld@163.com>
 # Require: Python 3.4+
-import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,io,gzip,logging,time,stat,re
+import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,io,gzip,time,re
 from . import fcgi
+from .log import logger
 PAGE_HEADER="<!DOCTYPE html><html><head>\
 <meta name=viewport content='width=device-width'>\
 <meta charset=utf-8><title>%s</title><style>\
@@ -149,7 +150,7 @@ class HTTPHandler:
 		self.writer=writer
 		self.conf=writer.transport._server.conf
 		self.mime=writer.transport._server.mime
-		self.logger=logging.getLogger(self.conf.get('server'))
+		self.logger=logger.getChild(self.conf.get('server').replace('.',','))
 		self.logger.setLevel(self.conf.get('loglevel')*10)
 		self.fcgi_handlers=writer.transport._server.fcgi_handlers
 		self.remote_addr=writer.get_extra_info('peername')

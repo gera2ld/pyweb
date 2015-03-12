@@ -1,7 +1,8 @@
 #!python
 # coding=utf-8
 # Compatible with Python 2
-import codecs,collections,os,io,re,logging
+import codecs,collections,os,io,re
+from .log import logger
 
 class ParseError(Exception): pass
 
@@ -24,7 +25,7 @@ class ConfParser:
 					args=self.split_args(line)
 					self.parse_conf_line(args)
 				except Exception as e:
-					logging.error('Error parsing config:\n\t%s\nMessage: %s',line,e)
+					logger.error('Error parsing config:\n\t%s\nMessage: %s',line,e)
 			f.close()
 		return self.conf
 	def split_args(self,s,allow_transfer=False):
@@ -75,6 +76,8 @@ class ConfParser:
 		if not h: h='0.0.0.0'
 		if not p: p='80'
 		self.server['server']=h+':'+p
+		self.server['ip']=h
+		self.server['port']=p
 		self.conf.setdefault(p,self.server)
 		self.new_host()
 		return self.server
