@@ -315,6 +315,7 @@ class HTTPHandler:
 			else:
 				for chunk in data:
 					yield from self.buffer.write(chunk)
+					if self.writer._transport._conn_lost: break
 	@asyncio.coroutine
 	def parse_request(self):
 		self.command = None  # set in case of error on the first line
