@@ -7,7 +7,7 @@ from .log import logger
 if __name__=='__main__':
 	logger.setLevel(logging.DEBUG)
 	ch=logging.StreamHandler()
-	ch.setLevel(logging.INFO)
+	ch.setLevel(logging.DEBUG)
 	fmt=logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
 	ch.setFormatter(fmt)
 	logger.addHandler(ch)

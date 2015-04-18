@@ -2,9 +2,17 @@ Gerald's HTTP Daemon
 ===
 This is a light HTTP daemon built on `asyncio` (requires Python 3.4+).
 
+Installation
+---
+``` sh
+$ python setup.py install
+```
+or just copy `httpd` to your project.
+
 Usage
 ---
 Config files (`httpd.conf` and `mime.conf`) should be put in `~/.gerald` first.
 
-	$ git clone https://github.com/gera2ld/pyhttpd.git
-	$ python -m httpd
+```sh
+$ python -m httpd
+```
