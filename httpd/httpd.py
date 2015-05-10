@@ -452,7 +452,6 @@ class HTTPHandler:
 			self.headers['Content-Type']=ct[0]
 			yield from self.send_file(path)
 		else:
-			self.headers['Content-Type']=self.mime[None][0]
 			yield from self.write_bin(path)
 	@asyncio.coroutine
 	def send_file(self, path=None, start=None, length=None):
@@ -469,7 +468,7 @@ class HTTPHandler:
 			if path is None: return
 		self.headers['Content-Type']=self.mime[None][0]
 		self.headers.add_header('Content-Disposition','attachment',
-				filename=os.path.basename(path).encode(self.encoding).decode('latin-1'))
+				filename=os.path.basename(path))
 		self.headers['Accept-Ranges']='bytes'
 		fs=os.path.getsize(path)
 		if 'HTTP_RANGE' in self.environ:	# self.protocol_version>='HTTP/1.1' and self.request_version>='HTTP/1.1':
