@@ -149,7 +149,7 @@ class HTTPHandler:
 		self.reader=reader
 		self.writer=writer
 		self.conf=writer.transport._server.conf
-		self.mime=writer.transport._server.mime
+		self.mimetypes=writer.transport._server.mimetypes
 		self.logger=logger.getChild(self.conf.get('server').replace('.',','))
 		self.logger.setLevel(self.conf.get('loglevel')*10)
 		self.fcgi_handlers=writer.transport._server.fcgi_handlers
@@ -444,12 +444,12 @@ class HTTPHandler:
 			yield from self.fcgi_handle(path,eh)
 			return
 		# File
-		ct=self.mime.get(ext)
-		if ct:
-			if ct[1]:
-				self.headers['Cache-Control']='max-age=%d, must-revalidate' % ct[1]
+		mime=self.mimetypes.get(ext)
+		if mime:
+			if mime.expire:
+				self.headers['Cache-Control']='max-age=%d, must-revalidate' % mime.expire
 				if self.cache_control(path): return
-			self.headers['Content-Type']=ct[0]
+			self.headers['Content-Type']=mime.name
 			yield from self.send_file(path)
 		else:
 			yield from self.write_bin(path)
@@ -466,7 +466,7 @@ class HTTPHandler:
 		if path is None:
 			path=yield from self.find_file(path)
 			if path is None: return
-		self.headers['Content-Type']=self.mime[None][0]
+		self.headers['Content-Type']=self.mimetypes[None].name
 		self.headers.add_header('Content-Disposition','attachment',
 				filename=os.path.basename(path))
 		self.headers['Accept-Ranges']='bytes'

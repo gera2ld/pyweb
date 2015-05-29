@@ -14,13 +14,13 @@ if __name__=='__main__':
 	logger.info('HTTP Server v1/%s %s - by Gerald'
 			% (platform.python_implementation(),platform.python_version()))
 	loop=asyncio.get_event_loop()
-	conf=httpconf.Config('~/.gerald/mime.conf','~/.gerald/httpd.conf')
+	conf=httpconf.Config()
 	for port in conf.conf:
 		s=conf.get_conf(port)
 		coro=asyncio.start_server(httpd.HTTPHandler,s.get('ip'),s.get('port'),loop=loop)
 		server=loop.run_until_complete(coro)
 		server.conf=s
-		server.mime=conf.mime
+		server.mimetypes=conf.mimetypes
 		server.fcgi_handlers=conf.fcgi_handlers
 		for s in server.sockets:
 			logger.info('Serving on %s, port %d',*s.getsockname()[:2])

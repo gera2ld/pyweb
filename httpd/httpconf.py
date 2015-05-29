@@ -1,7 +1,7 @@
 #!python
 # coding=utf-8
 # Compatible with Python 2
-import codecs,collections,os,io,re
+import codecs,collections,os,io,re,mimetypes
 from .log import logger
 
 class ParseError(Exception): pass
@@ -151,30 +151,12 @@ class ConfParser:
 		else:
 			raise ParseError('Unknown command: %s' % cmd)
 
-def parse_mime(filename='mime.conf'):
-	filename=os.path.expanduser(filename)
-	mime={}
-	try:
-		f=codecs.open(filename,encoding='utf-8')
-	except:
-		pass
-	else:
-		for line in f:
-			line=line.rstrip()
-			if not line or line[0]=='#': continue
-			args=list(filter(None,line.split()))
-			l=len(args)
-			if l<2 or l>3: continue
-			try:
-				if l==2: args.append(0)
-				else: args[2]=int(args[2])
-			except:
-				continue
-			t=args[0],args[2]
-			for i in args[1].split(','):
-				mime[i]=t
-		f.close()
-	return mime
+class MimeType:
+	expire=0
+	def __init__(self, name, expire=None):
+		self.name=name
+		if expire is not None:
+			self.expire=expire
 
 class ServerConfig:
 	def __init__(self, conf):
@@ -218,17 +200,47 @@ class ServerConfig:
 		return self.conf.get('gzip',[])
 
 class Config:
-	def __init__(self,mime_file=None,conf_file=None):
-		self.mime={None:('application/octet-stream',0)}
-		if mime_file is None:
-			mime_file='~/.gerald/mime.conf'
-		self.mime.update(parse_mime(mime_file))
-		if conf_file is None:
-			conf_file='~/.gerald/httpd.conf'
-		self.conf=ConfParser(conf_file).parse()
+	mime_file='~/.gerald/mime.conf'
+	conf_file='~/.gerald/httpd.conf'
+	def __init__(self,conf_file=None,mime_file=None):
+		if conf_file is not None:
+			self.conf_file=conf_file
+		self.conf=ConfParser(self.conf_file).parse()
+		if mime_file is not None:
+			self.mime_file=mime_file
+		self.parse_mime()
 		self.servers={}
 		for p in self.conf:
 			self.servers[p]=ServerConfig(self.conf[p])
 		self.fcgi_handlers={}
 	def get_conf(self, port):
 		return self.servers.get(port)
+	def parse_mime(self):
+		if not mimetypes.inited:
+			mimetypes.init()
+		self.mimetypes={}
+		for ext,mime in mimetypes.types_map.items():
+			self.mimetypes[ext]=MimeType(mime)
+		self.mimetypes[None]=MimeType('application/octet-stream',0)
+		filename=os.path.expanduser(self.mime_file)
+		try:
+			f=codecs.open(filename,encoding='utf-8')
+		except:
+			pass
+		else:
+			for line in f:
+				line=line.rstrip()
+				if not line or line[0]=='#': continue
+				args=list(filter(None,line.split()))
+				l=len(args)
+				if l<2 or l>3: continue
+				try:
+					if l==2: args.append(0)
+					else: args[2]=int(args[2])
+				except:
+					continue
+				t=MimeType(args[0],args[2])
+				for i in args[1].split(','):
+					self.mimetypes[i]=t
+			f.close()
+
