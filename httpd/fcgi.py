@@ -1,6 +1,7 @@
 #!python
 # coding=utf-8
 import struct,io,asyncio,os
+__all__=['getDispatcher']
 
 # Reference:
 # http://www.fastcgi.com/drupal/node/6?q=node/22
@@ -103,14 +104,25 @@ class FCGI:
 					write=write_err
 				yield from write(data)
 	@asyncio.coroutine
-	def fcgi_run(self, write_out, write_err, env, data):
+	def fcgi_run(self, write_out, write_err, env, reader, timeout):
 		rec=[]
 		rec.extend(self.build_record(FCGI_BEGIN_REQUEST,
 				struct.pack('!HB5x',FCGI_RESPONDER,FCGI_KEEP_CONN),
-				allowEmpty=False))
+				False))
 		rec.extend(self.build_record(FCGI_PARAMS,
-			self.build_name_value_pairs(env)))
-		rec.extend(self.build_record(FCGI_STDIN,data))
+			self.build_name_value_pairs(
+				filter(lambda x:not x[0].startswith('gehttpd.'),env.items()),
+			)))
+		length=0
+		if env['REQUEST_METHOD']=='POST':
+			try: length=int(env['CONTENT_LENGTH'])
+			except: pass
+		while length>0:
+			readlen=min(FCGI_MAX_LENGTH,length)
+			data=yield from asyncio.wait_for(reader.read(readlen), timeout)
+			rec.extend(self.build_record(FCGI_STDIN,data,False))
+			length-=len(data)
+		rec.extend(self.build_record(FCGI_STDIN))
 		r=b''.join(rec)
 		if self.writer is None or self.writer._protocol._connection_lost:
 			yield from self.connect()
@@ -118,19 +130,29 @@ class FCGI:
 		yield from self.writer.drain()
 		yield from self.fcgi_parse(write_out,write_err)
 
-class FCGIRequest:
-	def __init__(self,proxy_pass,max_con=1):
+class Dispatcher:
+	def __init__(self, proxy_pass_list, max_con=1):
 		# PHP on windows has problems with concurrency
 		if os.name=='nt': max_con=1
 		self.queue=asyncio.Queue()
-		for i in range(1,max_con+1):
-			self.queue.put_nowait(FCGI(proxy_pass,i))
+		for i in range(max_con):
+			for proxy_pass in proxy_pass_list:
+				self.queue.put_nowait(FCGI(proxy_pass,i))
 	@asyncio.coroutine
 	def fcgi_run(self, *k):
 		worker=yield from self.queue.get()
-		try: yield from worker.fcgi_run(*k)
+		try:
+			yield from worker.fcgi_run(*k)
 		except Exception as e:
 			worker.close()
 			raise e
 		finally:
 			self.queue.put_nowait(worker)
+
+dispatchers={}
+def getDispatcher(proxy_pass_list):
+	dispatcher_id=id(proxy_pass_list)
+	dispatcher=dispatchers.get(dispatcher_id)
+	if dispatcher is None:
+		dispatcher=dispatchers[dispatcher_id]=Dispatcher(proxy_pass_list)
+	return dispatcher

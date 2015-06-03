@@ -5,7 +5,7 @@ server :80
 #threads 40
 #loglevel 2
 errdocs 0,999 /error
-#fcgi 127.0.0.1:9000 php,php5
+#fcgi 127.0.0.1:9000,127.0.0.1:9001 php,php5
 
 # There may be several hosts on each server address
 host geraldl.lan

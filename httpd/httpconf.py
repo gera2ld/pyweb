@@ -111,12 +111,20 @@ class ConfParser:
 		elif cmd=='timeout':
 			self.server['timeout']=int(args.popleft())/1000
 		elif cmd=='fcgi':
-			l,_,p=args.popleft().partition(':')
-			l=l,int(p)
-			d=self.server['fcgi']
-			b=args.popleft()
-			for i in b.split(','):
-				if i: d[i]=l
+			hosts=[]
+			for host in args.popleft().split(','):
+				try:
+					l,_,p=host.partition(':')
+					p=int(p)
+				except:
+					pass
+				else:
+					hosts.append((l,p))
+			if hosts:
+				d=self.server['fcgi']
+				b=args.popleft()
+				for i in b.split(','):
+					if i: d[i]=hosts
 		elif cmd=='gzip':
 			d=self.server['gzip']=[]
 			for i in args.popleft().split(','):
@@ -212,7 +220,6 @@ class Config:
 		self.servers={}
 		for p in self.conf:
 			self.servers[p]=ServerConfig(self.conf[p])
-		self.fcgi_handlers={}
 	def get_conf(self, port):
 		return self.servers.get(port)
 	def parse_mime(self):

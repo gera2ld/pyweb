@@ -152,7 +152,6 @@ class HTTPHandler:
 		self.mimetypes=writer.transport._server.mimetypes
 		self.logger=logger.getChild(self.conf.get('server').replace('.',','))
 		self.logger.setLevel(self.conf.get('loglevel')*10)
-		self.fcgi_handlers=writer.transport._server.fcgi_handlers
 		self.remote_addr=writer.get_extra_info('peername')
 		self.local_addr=writer.get_extra_info('sockname')
 		env=self.base_environ={}
@@ -581,23 +580,12 @@ class HTTPHandler:
 			'SERVER_SOFTWARE':self.server_version,
 			'REDIRECT_STATUS':self.status[0],
 			})
-		# FCGI works in a single thread, so just one request for one application
-		handler=self.fcgi_handlers.get(proxy_pass)
-		if handler is None:
-			handler=self.fcgi_handlers[proxy_pass]=fcgi.FCGIRequest(proxy_pass)
-		l=0
-		if self.environ['REQUEST_METHOD']=='POST':
-			try: l=int(self.environ['CONTENT_LENGTH'])
-			except: pass
-		if l:
-			data=yield from asyncio.wait_for(self.reader.read(l), self.conf.timeout)
-		else:
-			data=None
+		handler=fcgi.getDispatcher(proxy_pass)
 		try:
 			yield from handler.fcgi_run(
 				self.fcgi_write, self.fcgi_err,
-				filter(lambda x:not x[0].startswith('gehttpd.'),self.environ.items()),
-				data
+				self.environ,
+				self.reader, self.conf.timeout
 			)
 		except ConnectionRefusedError:
 			yield from self.send_error(500, "Failed connecting to FCGI server!")
