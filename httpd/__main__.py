@@ -3,6 +3,7 @@
 import logging,asyncio,platform
 from . import httpd,httpconf
 from .log import logger
+__version__ = '1.0'
 
 if __name__=='__main__':
 	logger.setLevel(logging.DEBUG)
@@ -11,8 +12,8 @@ if __name__=='__main__':
 	fmt=logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
 	ch.setFormatter(fmt)
 	logger.addHandler(ch)
-	logger.info('HTTP Server v1/%s %s - by Gerald'
-			% (platform.python_implementation(),platform.python_version()))
+	logger.info('HTTP Server v%s/%s %s - by Gerald'
+			% (__version__,platform.python_implementation(),platform.python_version()))
 	loop=asyncio.get_event_loop()
 	conf=httpconf.Config()
 	for port in conf.conf:

@@ -131,16 +131,38 @@ class FCGI:
 		yield from self.fcgi_parse(write_out,write_err)
 
 class Dispatcher:
-	def __init__(self, proxy_pass_list, max_con=1):
-		# PHP on windows has problems with concurrency
-		if os.name=='nt': max_con=1
+	max_con = 1
+	# PHP on Windows has problems with concurrency
+	if os.name=='nt':
+		max_con=1
+	def __init__(self, proxy_pass_list):
+		self.con_len=[]
+		self.con_idx=0
+		self.full=False
 		self.queue=asyncio.Queue()
-		for i in range(max_con):
-			for proxy_pass in proxy_pass_list:
-				self.queue.put_nowait(FCGI(proxy_pass,i))
+		for proxy_pass in proxy_pass_list:
+			self.con_len.append([proxy_pass,0])
+	@asyncio.coroutine
+	def get_worker(self):
+		worker=None
+		if not self.full:
+			try:
+				worker=self.queue.get_nowait()
+			except asyncio.queues.QueueEmpty:
+				# No lock is needed since no coroutines here
+				item=self.con_len[self.con_idx]
+				if item[1]>=self.max_con:
+					self.full=True
+				else:
+					worker=FCGI(item[0],item[1])
+					item[1]+=1
+					self.con_idx=(self.con_idx+1)%len(self.con_len)
+		if worker is None:
+			worker=yield from self.queue.get()
+		return worker
 	@asyncio.coroutine
 	def fcgi_run(self, *k):
-		worker=yield from self.queue.get()
+		worker=yield from self.get_worker()
 		try:
 			yield from worker.fcgi_run(*k)
 		except Exception as e:
