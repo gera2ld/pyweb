@@ -5,16 +5,30 @@
 import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,io,gzip,time,re
 from . import fcgi
 from .log import logger
-PAGE_HEADER="<!DOCTYPE html><html><head>\
-<meta name=viewport content='width=device-width'>\
-<meta charset=utf-8><title>%s</title><style>\
-body{font-family:Tahoma;background:#eee;color:#333;}\
-a{text-decoration:none;}\
-a:hover{text-decoration:underline;}\
-ul{margin:0;padding-left:20px;}\
-li a{display:block;word-break:break-all;}\
-</style></head><body><h1>%s</h1>"
-PAGE_FOOTER='<hr>%s<center>&copy; 2014 Gerald</center></body></html>'
+PAGE_HEADER=(
+'<!DOCTYPE html>'
+'<html>'
+	'<head>'
+		'<meta name=viewport content="width=device-width">'
+		'<meta charset=utf-8>'
+		'<title>%s</title>'
+		'<style>'
+			'body{font-family:Tahoma;background:#eee;color:#333;}'
+			'a{text-decoration:none;}'
+			'a:hover{text-decoration:underline;}'
+			'ul{margin:0;padding-left:20px;}'
+			'li a{display:block;word-break:break-all;}'
+			'li.dir{font-weight:bold;}'
+		'</style>'
+	'</head>'
+	'<body>'
+		'<h1>%s</h1>')
+PAGE_FOOTER=(
+'<hr>'
+'%s'
+'<center>&copy; 2014-2015 <a href=/>Gerald</a></center>'
+'</body>'
+'</html>')
 GMT='%a, %d %b %Y %H:%M:%S GMT'
 
 class ChunkedBuffer:
@@ -26,55 +40,74 @@ class ChunkedBuffer:
 		self.logger=logger
 		self.first_flush=True
 		self.buffer=io.BytesIO()
-		self.clear()
 		self.stream=self.buffer	# can be wrapped
 		self.content_encoding='deflate'
-	def clear(self):
-		self.buffer.seek(0)
+		self.wrappers=[]
+		self.clear()
+	def emptyBuffer(self):
+		# timeit tested: new io.BytesIO is much faster than io.BytesIO.truncate(0)
+		#self.buffer = io.BytesIO()
 		self.buffer.truncate(0)
+		self.buffer.seek(0)
+	def clear(self):
+		self.emptyBuffer()
 		self.bytes_sent=0
 		self.more=True
 		self.error=None
-	def wrap_gzip(self,compressLevel=6):
+	def wrap_gzip(self):
+		self.wrappers.append(self._wrap_gzip)
+	def _wrap_gzip(self,compressLevel=6):
 		self.stream=gzip.open(self.buffer,'wb',compressLevel)
 		self.content_encoding='gzip'
 	@asyncio.coroutine
 	def write(self, data):
 		if self.error: return
+		if data and self.wrappers:
+			for wrapper in self.wrappers:
+				wrapper()
+			del self.wrappers[:]
 		l=self.stream.write(data)
 		self.stream.flush()
-		if self.length()>=self.bufsize:
+		if self.length>=self.bufsize:
 			self.more=True
 			yield from self.flush()
 	def send(self, data):
 		if self.error: return
-		self.writer.write(data)
-		self.bytes_sent+=len(data)
+		try:
+			self.writer.write(data)
+			self.bytes_sent+=len(data)
+		except Exception as e:
+			self.error = e
+			self.logger.debug(str(e))
 	@asyncio.coroutine
 	def flush(self):
 		if self.first_flush:
 			self.first_flush=False
 			self.init_flush()
-		l=self.length()
+		l=self.length
 		if l:
 			if self.chunked:
 				self.send(('%x\r\n' % l).encode())
 			self.send(self.buffer.getvalue())
 			if self.chunked:
 				self.send(b'\r\n')
-			self.buffer.truncate(0)
-			self.buffer.seek(0)
-			try:
-				yield from self.writer.drain()
-			except Exception as e:
-				self.logger.debug(str(e))
+			self.emptyBuffer()
+			yield from self.drain()
+	@asyncio.coroutine
+	def drain(self):
+		try:
+			yield from self.writer.drain()
+		except Exception as e:
+			self.error = e
+			self.logger.debug(str(e))
 	@asyncio.coroutine
 	def close(self):
 		self.more=False
 		yield from self.flush()
 		if self.chunked:
 			self.send(b'0\r\n\r\n')
-		yield from self.writer.drain()
+		yield from self.drain()
+	@property
 	def length(self):
 		return self.buffer.tell()
 
@@ -257,9 +290,11 @@ class HTTPHandler:
 		else:
 			self.chunked=False
 			self.close_connection=self.environ.get('HTTP_CONNECTION','close')!='keep-alive'
+		if self.buffer.content_encoding=='gzip':
+			self.headers['Content-Encoding']='gzip'
 		if not self.buffer.more:
 			self.chunked=False
-			self.headers['Content-Length']=str(self.buffer.length())
+			self.headers['Content-Length']=str(self.buffer.length)
 		elif self.chunked:
 			self.headers['Transfer-Encoding']='chunked'
 		else:
@@ -303,7 +338,6 @@ class HTTPHandler:
 					ct=self.headers.get('Content-Type','')
 					for c in self.conf.get_gzip():
 						if ct.startswith(c):
-							self.headers.add_header('Content-Encoding','gzip')
 							self.buffer.wrap_gzip()
 							break
 					break
@@ -519,7 +553,7 @@ class HTTPHandler:
 			yield from self.send_error(404)
 			return
 		dpath=self.path.rstrip('/')
-		yield from self.write(PAGE_HEADER % ('Directory listing for '+dpath,'Directory Listing'))
+		yield from self.write(PAGE_HEADER % ('Directory listing for '+(dpath or '/'),'Directory Listing'))
 		ds=dpath.split('/')
 		last=ds.pop()
 		dirs=[]
@@ -537,9 +571,33 @@ class HTTPHandler:
 			null=False
 			p=os.path.join(rpath, i)
 			if os.path.isdir(p):
-				yield from self.write('<li><a href="%s/"><b>&lt;%s&gt;</b></a></li>' % (pre+urllib.parse.quote(i),i))
+				yield from self.write(
+					'<li class="dir">'
+						'<a href="%s/">'
+							'<span class="type">[DIR]</span> '
+							'%s'
+						'</a>'
+					'</li>'
+				% (pre+urllib.parse.quote(i),i))
 			else:
-				files.append('<li><a href="%s%s">%s</a></li>' % (pre,urllib.parse.quote(i),i))
+				size=os.path.getsize(p)
+				unit='B'
+				for u in ('KB','MB','GB','TB'):
+					if size>1024:
+						size=size/1024
+						unit=u
+					else:
+						break
+				if isinstance(size, float):
+					size='%.2f' % size
+				files.append(
+					'<li class="file">'
+						'<a href="%s%s">'
+							'<span class="type">[%s%s]</span> '
+							'%s'
+						'</a>'
+					'</li>'
+				% (pre,urllib.parse.quote(i),size,unit,i))
 		for i in files:
 			null=False
 			yield from self.write(i)
