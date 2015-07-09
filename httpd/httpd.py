@@ -479,7 +479,13 @@ class HTTPHandler:
 		mime=self.mimetypes.get(ext)
 		if mime:
 			if mime.expire:
-				self.headers['Cache-Control']='max-age=%d, must-revalidate' % mime.expire
+				expire = mime.expire
+			elif os.path.isfile(path):
+				expire = 86400
+			else:
+				expire = 0
+			if expire:
+				self.headers['Cache-Control']='max-age=%d, must-revalidate' % expire
 				if self.cache_control(path): return
 			self.headers['Content-Type']=mime.name
 			yield from self.send_file(path)
