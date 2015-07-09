@@ -69,7 +69,6 @@ class ConfParser:
 			'fcgi':{},
 			'gzip':['text'],
 			'timeout':10,
-			'threads':40,
 			'loglevel':2,
 		}
 		h,_,p=arg.partition(':')
@@ -104,8 +103,6 @@ class ConfParser:
 			self.new_server('')
 		if cmd=='host':
 			self.new_host(args.popleft())
-		elif cmd=='threads':
-			self.server['threads']=int(args.popleft())
 		elif cmd=='loglevel':
 			self.server['loglevel']=int(args.popleft())
 		elif cmd=='timeout':
@@ -124,7 +121,7 @@ class ConfParser:
 				d=self.server['fcgi']
 				b=args.popleft()
 				for i in b.split(','):
-					if i: d[i]=hosts
+					if i: d['.'+i]=hosts
 		elif cmd=='gzip':
 			d=self.server['gzip']=[]
 			for i in args.popleft().split(','):
@@ -248,6 +245,6 @@ class Config:
 					continue
 				t=MimeType(args[0],args[2])
 				for i in args[1].split(','):
-					self.mimetypes[i]=t
+					self.mimetypes['.'+i]=t
 			f.close()
 

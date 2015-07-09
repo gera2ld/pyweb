@@ -470,7 +470,6 @@ class HTTPHandler:
 		path=yield from self.find_file(path,self.conf.get_default(self.host))
 		if path is None: return
 		_,ext=os.path.splitext(path)
-		if ext: ext=ext[1:]
 		# FCGI
 		eh=self.conf.get_fcgi().get(ext)
 		if eh:
