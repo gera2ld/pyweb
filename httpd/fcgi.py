@@ -40,8 +40,8 @@ FCGI_MAX_REQS			="FCGI_MAX_REQS"
 FCGI_MPXS_CONNS			="FCGI_MPXS_CONNS"
 
 class FCGI:
-	def __init__(self, proxy_pass, req_id):
-		self.proxy_pass=proxy_pass
+	def __init__(self, addr, req_id):
+		self.addr=addr
 		self.req_id=req_id
 		self.reader=self.writer=None
 	def close(self):
@@ -81,7 +81,7 @@ class FCGI:
 		return b''.join(d)
 	@asyncio.coroutine
 	def connect(self):
-		host,port=self.proxy_pass
+		host,port=self.addr
 		self.reader,self.writer=yield from asyncio.wait_for(
 				asyncio.open_connection(host=host, port=port), 5)
 	@asyncio.coroutine
@@ -135,13 +135,13 @@ class Dispatcher:
 	# PHP on Windows has problems with concurrency
 	if os.name=='nt':
 		max_con=1
-	def __init__(self, proxy_pass_list):
+	def __init__(self, addr_list):
 		self.con_len=[]
 		self.con_idx=0
 		self.full=False
 		self.queue=asyncio.Queue()
-		for proxy_pass in proxy_pass_list:
-			self.con_len.append([proxy_pass,0])
+		for addr in addr_list:
+			self.con_len.append([addr,0])
 	@asyncio.coroutine
 	def get_worker(self):
 		worker=None
@@ -172,9 +172,9 @@ class Dispatcher:
 			self.queue.put_nowait(worker)
 
 dispatchers={}
-def getDispatcher(proxy_pass_list):
-	dispatcher_id=id(proxy_pass_list)
+def get_dispatcher(fcgi_rule):
+	dispatcher_id=id(fcgi_rule)
 	dispatcher=dispatchers.get(dispatcher_id)
 	if dispatcher is None:
-		dispatcher=dispatchers[dispatcher_id]=Dispatcher(proxy_pass_list)
+		dispatcher=dispatchers[dispatcher_id]=Dispatcher(fcgi_rule.addr)
 	return dispatcher
