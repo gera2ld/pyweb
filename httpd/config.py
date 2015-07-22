@@ -90,7 +90,7 @@ class ServerConfig:
     def find_file(self, realpath):
         if os.path.isfile(realpath):
             return realpath
-        if os.path.isdir(realpath):
+        if realpath.endswith('/') and os.path.isdir(realpath):
             for i in self.indexes:
                 path = os.path.join(realpath, i)
                 if os.path.isfile(path):

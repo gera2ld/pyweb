@@ -1,52 +1,8 @@
 #!python
 # coding=utf-8
 import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,time,re
-from . import fcgi, config, handlers, writers
+from . import fcgi, config, handlers, writers, template
 from .log import logger
-PAGE_HEADER = (
-'<!DOCTYPE html>'
-'<html>'
-'<head>'
-'<meta name=viewport content="width=device-width">'
-'<meta charset=utf-8>'
-'<title>%s</title>'
-'<style>'
-'body{font-family:Tahoma;background:#eee;color:#333;}'
-'a{text-decoration:none;}'
-'a:hover{text-decoration:underline;}'
-'ul{margin:0;padding-left:20px;}'
-'li a{display:block;word-break:break-all;}'
-'li.dir{font-weight:bold;}'
-'</style>'
-'</head>'
-'<body>'
-'<h1>%s</h1>')
-PAGE_FOOTER = (
-'<hr>'
-'%s'
-'<center>&copy; 2014-2015 <a href=/>Gerald</a></center>'
-'</body>'
-'</html>')
-
-class FileProducer:
-    bufsize = 4096
-    def __init__(self, path, start = 0, length = None):
-        self.fp = open(path, 'rb')
-        if start: self.fp.seek(start)
-        self.length = length
-    def __iter__(self):
-        return self
-    def __next__(self):
-        if self.length is 0:
-            raise StopIteration
-        length = min(self.length, self.bufsize) if self.length else self.bufsize
-        data = self.fp.read(length)
-        if data:
-            if self.length:
-                self.length -= len(data)
-            return data
-        else:
-            raise StopIteration
 
 class HTTPHandler:
     encoding = sys.getdefaultencoding()
@@ -102,6 +58,8 @@ class HTTPHandler:
     }
     handler_classes = [
         handlers.FCGIFileHandler,
+        handlers.DirectoryHandler,
+        handlers.NotFoundHandler,
     ]
     def __init__(self, reader, writer):
         self.reader = reader
@@ -232,7 +190,7 @@ class HTTPHandler:
             if self.content_encoding == 'gzip':
                 writer = writers.GZipWriter(writer, self.logger)
             self.buffer = writer
-        if self.command != 'HEAD':
+        if self.command != 'HEAD' and data:
             if isinstance(data, str):
                 data = data.encode('utf-8', 'ignore')
             if isinstance(data, bytes):
@@ -349,8 +307,10 @@ class HTTPHandler:
         self.get_path()
         self.handlers = [handler_class(self) for handler_class in self.handler_classes]
         for handler in self.handlers:
-            ret = yield from handler.handle()
+            self.logger.debug(handler)
+            ret = yield from handler.handle(self.realpath)
             if ret: break
+        self.write(None)
         self.buffer.flush()
         self.buffer.close()
         yield from self.writer.drain()
@@ -370,9 +330,11 @@ class HTTPHandler:
             if message is None:
                 message = self.responses.get(code, '???')
             self.status = code,
-            self.write(PAGE_HEADER % ('Error...', 'Error response'))
-            self.write('<p>Error code: %d</p><p>Message: %s</p>' % (code, message))
-            self.write(PAGE_FOOTER % '')
+            self.write(template.render(
+                title = 'Error...',
+                header = 'Error response',
+                body = '<p>Error code: %d</p><p>Message: %s</p>' % (code, message)
+            ))
 
     @asyncio.coroutine
     def fcgi_write(self, data):

@@ -1,18 +1,40 @@
 #!/usr/bin/env python
 # coding=utf-8
-import asyncio
-from . import config
+import asyncio, os, html
+from urllib import parse
+from . import config, template
+
+class FileProducer:
+    bufsize = 4096
+    def __init__(self, path, start = 0, length = None):
+        self.fp = open(path, 'rb')
+        if start: self.fp.seek(start)
+        self.length = length
+    def __iter__(self):
+        return self
+    def __next__(self):
+        if self.length is 0:
+            raise StopIteration
+        length = min(self.length, self.bufsize) if self.length else self.bufsize
+        data = self.fp.read(length)
+        if data:
+            if self.length:
+                self.length -= len(data)
+            return data
+        else:
+            raise StopIteration
 
 class BaseHandler:
     def __init__(self, parent):
         self.parent = parent
         self.config = parent.config
         self.headers = parent.headers
+        self.environ = parent.environ
         self.write = parent.write
         self.logger = parent.logger
 
     @asyncio.coroutine
-    def handle(self, realpath = None):
+    def handle(self, realpath):
         '''
         Should be overridden
         '''
@@ -21,16 +43,15 @@ class BaseHandler:
 
 class FileHandler(BaseHandler):
     subhandlers = ['handle_file']
+
     @asyncio.coroutine
-    def handle(self, realpath = None):
-        path = self.config.find_file(realpath or self.parent.realpath)
-        if path is None:
-            self.parent.send_error(404)
-            return True
-        for subhandle in self.subhandlers:
-            handle = getattr(self, subhandle, None)
-            if handle and (yield from handle(path)):
-                return True
+    def handle(self, realpath):
+        path = self.config.find_file(realpath)
+        if path:
+            for subhandle in self.subhandlers:
+                handle = getattr(self, subhandle, None)
+                if handle and (yield from handle(path)):
+                    return True
 
     def cache_control(self, path):
         st = os.stat(path)
@@ -99,3 +120,76 @@ class FCGIFileHandler(FileHandler):
         if fcgi_rule:
             yield from self.fcgi_handle(path, fcgi_rule)
             return True
+
+class DirectoryHandler(BaseHandler):
+    @asyncio.coroutine
+    def handle(self, realpath):
+        try:
+            assert realpath.endswith('/')
+            items = sorted(os.listdir(realpath), key = str.upper)
+        except:
+            # not directory or not allowed to read
+            return
+        dir_path = self.parent.path.rstrip('/')
+        parts = dir_path.split('/')
+        pre = ''
+        dirs = []
+        for part in reversed(parts):
+            part = part or 'Home'
+            if pre:
+                part = '<a href="%s">%s</a>' % (pre, part)
+            pre += '../'
+            dirs.append(part)
+        guide = '/'.join(reversed(dirs))
+        data = [guide, '<hr><ul>']
+        null = not items
+        files = []
+        for item in items:
+            if item.startswith('.'):
+                continue
+            path = os.path.join(realpath, item)
+            if os.path.isdir(path):
+                data.append(
+                    '<li class="dir">'
+                        '<a href="%s/">'
+                            '<span class="type">[DIR]</span> %s'
+                        '</a>'
+                    '</li>' % (parse.quote(item), html.escape(item))
+                )
+            else:
+                size = os.path.getsize(path)
+                for unit in ('B', 'KB', 'MB', 'GB', 'TB'):
+                    if size < 1024: break
+                    size = size / 1024
+                if isinstance(size, float):
+                    size = '%.2f' % size
+                files.append(
+                    '<li class="file">'
+                        '<a href="%s">'
+                            '<span class="type">[%s%s]</span> %s'
+                        '</a>'
+                    '</li>' % (parse.quote(item), size, unit, html.escape(item))
+                )
+        data.extend(files)
+        if null:
+            data.append('<li>Null</li>')
+        data.append('</ul>')
+        self.write(template.render(
+            title = 'Directory Listing',
+            head = (
+                '<style>'
+                    'ul{margin:0;padding-left:20px;}'
+                    'li a{display:block;word-break:break-all;}'
+                    'li.dir{font-weight:bold;}'
+                '</style>'
+            ),
+            header = 'Directory listing for ' + (dir_path or '/'),
+            body = ''.join(data)
+        ))
+        return True
+
+class NotFoundHandler(BaseHandler):
+    @asyncio.coroutine
+    def handle(self, realpath):
+        self.parent.send_error(404)
+        return True

@@ -74,7 +74,6 @@ class BufferedWriter(BaseWriter):
         Shelter raw writer from being closed.
         '''
         self.flush()
-        self.raw.flush()
         self.raw.close()
 
 class GZipWriter(BaseWriter):
