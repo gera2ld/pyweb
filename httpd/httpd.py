@@ -1,12 +1,10 @@
 #!python
 # coding=utf-8
-import sys,asyncio,locale,email.parser,http.client,urllib.parse,os,time,re
-from . import fcgi, config, handlers, writers, template
+import sys, asyncio, email.parser, http.client, urllib.parse, time
+from . import config, handlers, writers, template
 from .log import logger
 
 class HTTPHandler:
-    encoding = sys.getdefaultencoding()
-    sys_locale = locale.getdefaultlocale()
     server_version = 'SLHD/1.0'
     sys_version = "Python/" + sys.version.split()[0]
     protocol_version = 'HTTP/1.1'
@@ -57,7 +55,8 @@ class HTTPHandler:
         511: 'Network Authentication Required',
     }
     handler_classes = [
-        handlers.FCGIFileHandler,
+        handlers.FCGIHandler,
+        handlers.FileHandler,
         handlers.DirectoryHandler,
         handlers.NotFoundHandler,
     ]
@@ -82,12 +81,13 @@ class HTTPHandler:
     def get_path(self, path = None):
         if path is None: path = self.path
         port = self.local_addr[1]
-        path, self.realpath = self.config.get_path(path)
+        path, realpath = self.config.get_path(path)
         self.environ['DOCUMENT_URI'] = path
         path, _, query = path.partition('?')
         # TODO add PATH_INFO
         self.environ['SCRIPT_NAME'] = self.path = urllib.parse.unquote(path)
         self.environ['QUERY_STRING'] = query
+        self.realpath = urllib.parse.unquote(realpath)
         self.logger.debug('Rewrited path: %s', path)
         self.logger.debug('Real path: %s', self.realpath)
 
@@ -276,7 +276,6 @@ class HTTPHandler:
         self.headers_sent = False
         self.headers = http.client.HTTPMessage()
         self.content_encoding = 'deflate'
-        self.first_write = True
         try:
             assert (yield from self.parse_request())
         except:
@@ -335,47 +334,3 @@ class HTTPHandler:
                 header = 'Error response',
                 body = '<p>Error code: %d</p><p>Message: %s</p>' % (code, message)
             ))
-
-    @asyncio.coroutine
-    def fcgi_write(self, data):
-        i = 0
-        while self.first_write:
-            j = data.find(b'\n', i)
-            h = data[i:j].strip().decode()
-            i = j + 1
-            if not h:
-                data = data[i:]
-                break
-            k, v = h.split(':', 1)
-            v = v.strip()
-            if k.upper() == 'STATUS':
-                c, _, m = v.partition(' ')
-                self.status = int(c), m
-            else:
-                self.headers[k] = v
-        yield from self.write(data)
-
-    @asyncio.coroutine
-    def fcgi_err(self, data):
-        if isinstance(data,bytes):
-            data=data.decode(self.encoding,'replace')
-        self.logger.warning(data)
-
-    @asyncio.coroutine
-    def fcgi_handle(self, path, fcgi_rule):
-        self.environ.update({
-            'SCRIPT_FILENAME': os.path.abspath(path),
-            'DOCUMENT_ROOT': self.doc_root or '',
-            'SERVER_NAME': self.host or '',
-            'SERVER_SOFTWARE': self.server_version,
-            'REDIRECT_STATUS': self.status[0],
-        })
-        handler = fcgi.get_dispatcher(fcgi_rule)
-        try:
-            yield from handler.fcgi_run(
-                self.fcgi_write, self.fcgi_err,
-                self.environ,
-                self.reader, self.conf.timeout
-            )
-        except ConnectionRefusedError:
-            yield from self.send_error(500, "Failed connecting to FCGI server!")

@@ -38,13 +38,17 @@ class AliasRule:
             return self.dest + parts[1]
 
 class FastCGIRule:
-    def __init__(self, src, addr):
+    timeout = 10
+    def __init__(self, src, addr, indexes, timeout = None):
         if not isinstance(src, re._pattern_type):
             src = re.compile(src)
         self.src = src
         if not isinstance(addr, list):
             addr = [addr]
         self.addr = addr
+        self.indexes = indexes
+        if timeout:
+            self.timeout = timeout
 
     def apply(self, path):
         if self.src.search(path):
@@ -67,8 +71,8 @@ class ServerConfig:
     def add_alias(self, src, dest):
         self.aliases.append(AliasRule(src, dest))
 
-    def add_fastcgi(self, src, addr):
-        self.fcgi.append(FastCGIRule(src, addr))
+    def add_fastcgi(self, src, addr, indexes = None):
+        self.fcgi.append(FastCGIRule(src, addr, indexes))
 
     def set_indexes(self, indexes):
         self.indexes = list(indexes)
@@ -87,19 +91,19 @@ class ServerConfig:
             realpath = self.fallback_alias.apply(path)
         return path, realpath
 
-    def find_file(self, realpath):
+    def find_file(self, realpath, indexes = None):
         if os.path.isfile(realpath):
             return realpath
         if realpath.endswith('/') and os.path.isdir(realpath):
-            for i in self.indexes:
+            for i in indexes or self.indexes:
                 path = os.path.join(realpath, i)
                 if os.path.isfile(path):
                     return path
 
     def get_fastcgi(self, path):
         for rule in self.fcgi:
-            addr = rule.apply(path)
-            if addr: return addr
+            rule = rule.apply(path)
+            if rule: return rule
 
 class Config:
     def __init__(self):

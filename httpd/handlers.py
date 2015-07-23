@@ -2,7 +2,7 @@
 # coding=utf-8
 import asyncio, os, html
 from urllib import parse
-from . import config, template
+from . import config, template, fcgi
 
 class FileProducer:
     bufsize = 4096
@@ -41,46 +41,92 @@ class BaseHandler:
         self.parent.send_error(404)
         return True
 
-class FileHandler(BaseHandler):
-    subhandlers = ['handle_file']
-
+class FCGIHandler(BaseHandler):
     @asyncio.coroutine
     def handle(self, realpath):
+        fcgi_rule = self.config.get_fastcgi(realpath)
+        if fcgi_rule:
+            path = self.config.find_file(realpath, fcgi_rule.indexes)
+            if path:
+                yield from self.fcgi_handle(path, fcgi_rule)
+                return True
+
+    @asyncio.coroutine
+    def fcgi_write(self, data):
+        i = 0
+        while not self.parent.headers_sent:
+            j = data.find(b'\n', i)
+            line = data[i: j].strip().decode()
+            i = j + 1
+            if not line:
+                data = data[i:]
+                break
+            k, v = line.split(':', 1)
+            v = v.strip()
+            if k.upper() == 'STATUS':
+                c, _, m = v.partition(' ')
+                self.parent.status = int(c), m
+            else:
+                self.headers[k] = v
+        yield from self.write(data)
+
+    @asyncio.coroutine
+    def fcgi_err(self, data):
+        if isinstance(data, bytes):
+            data = data.decode('utf-8', 'replace')
+        self.logger.warning(data)
+
+    @asyncio.coroutine
+    def fcgi_handle(self, path, fcgi_rule):
+        self.environ.update({
+            'SCRIPT_FILENAME': os.path.abspath(path),
+            'DOCUMENT_ROOT': self.doc_root or '',
+            'SERVER_NAME': self.host or '',
+            'SERVER_SOFTWARE': self.server_version,
+            'REDIRECT_STATUS': self.status[0],
+        })
+        handler = fcgi.get_dispatcher(fcgi_rule)
+        try:
+            yield from handler.fcgi_run(
+                self.fcgi_write, self.fcgi_err,
+                self.environ,
+                self.parent.reader, fcgi_rule.timeout
+            )
+        except ConnectionRefusedError:
+            yield from self.parent.send_error(500, "Failed connecting to FCGI server!")
+        return True
+
+class FileHandler(BaseHandler):
+    @asyncio.coroutine
+    def handle(self, realpath):
+        self.logger.debug('File handler')
         path = self.config.find_file(realpath)
         if path:
-            for subhandle in self.subhandlers:
-                handle = getattr(self, subhandle, None)
-                if handle and (yield from handle(path)):
-                    return True
+            mime = config.get_mime(path)
+            if mime:
+                if mime.expire:
+                    expire = mime.expire
+                elif os.path.isfile(path):
+                    expire = 86400
+                else:
+                    expire = 0
+                if expire:
+                    self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
+                    if self.cache_control(path): return
+                self.headers['Content-Type'] = mime.name
+                self.send_file(path)
+            else:
+                self.write_bin(path)
+            return True
 
     def cache_control(self, path):
         st = os.stat(path)
-        self.headers['Last-Modified'] = self.date_time_string(st.st_mtime)
+        self.headers['Last-Modified'] = self.parent.date_time_string(st.st_mtime)
         lm = self.environ.get('HTTP_IF_MODIFIED_SINCE')
         if lm and self.date_time_compare(lm, st.st_mtime):
             self.status = 304,
             return True
         return False
-
-    @asyncio.coroutine
-    def handle_file(self, path):
-        self.logger.debug('File handler')
-        mime = config.get_mime(path)
-        if mime:
-            if mime.expire:
-                expire = mime.expire
-            elif os.path.isfile(path):
-                expire = 86400
-            else:
-                expire = 0
-            if expire:
-                self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
-                if self.cache_control(path): return
-            self.headers['Content-Type'] = mime.name
-            self.send_file(path)
-        else:
-            self.write_bin(path)
-        return True
 
     def send_file(self, path, start = None, length = None):
         if not os.path.isfile(path): return
@@ -101,7 +147,7 @@ class FileHandler(BaseHandler):
                 assert start <= end
                 length = end - start + 1
             except:
-                self.send_error(400)
+                self.parent.send_error(400)
             else:
                 self.headers['Content-Range'] = 'bytes %d-%d/%d' % (start, end, fs)
                 if self.cache_control(path): return
@@ -109,17 +155,6 @@ class FileHandler(BaseHandler):
                 self.send_file(path, start, length)
         else:
             self.send_file(path, length = fs)
-
-class FCGIFileHandler(FileHandler):
-    subhandlers = ['handle_fcgi', 'handle_file']
-
-    @asyncio.coroutine
-    def handle_fcgi(self, path):
-        self.logger.debug('FCGI handler')
-        fcgi_rule = self.config.get_fastcgi(path)
-        if fcgi_rule:
-            yield from self.fcgi_handle(path, fcgi_rule)
-            return True
 
 class DirectoryHandler(BaseHandler):
     @asyncio.coroutine
@@ -140,7 +175,7 @@ class DirectoryHandler(BaseHandler):
                 part = '<a href="%s">%s</a>' % (pre, part)
             pre += '../'
             dirs.append(part)
-        guide = '/'.join(reversed(dirs))
+        guide = ' / '.join(reversed(dirs))
         data = [guide, '<hr><ul>']
         null = not items
         files = []
@@ -189,7 +224,4 @@ class DirectoryHandler(BaseHandler):
         return True
 
 class NotFoundHandler(BaseHandler):
-    @asyncio.coroutine
-    def handle(self, realpath):
-        self.parent.send_error(404)
-        return True
+    pass

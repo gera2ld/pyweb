@@ -1,6 +1,6 @@
-Gerald's HTTP Daemon
+Super Light HTTP Daemon
 ===
-This is a light HTTP daemon built on `asyncio` (requires Python 3.4+).
+This is a super light HTTP daemon based on `asyncio` (requires Python 3.4+).
 
 Installation
 ---
@@ -11,7 +11,7 @@ or just copy `httpd` to your project.
 
 Usage
 ---
-Config files (`httpd.conf` and `mime.conf`) should be put in `~/.gerald` first.
+There is no config file yet.
 
 ```sh
 $ python -m httpd

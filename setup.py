@@ -8,6 +8,6 @@ setup(
 	packages=['httpd'],
 	author='Gerald',
 	author_email='gera2ld@163.com',
-	description='HTTP daemon in Python, using asyncio.',
+	description='Super light HTTP daemon in Python, using asyncio.',
 	url='https://github.com/gera2ld/pyhttpd',
 )
