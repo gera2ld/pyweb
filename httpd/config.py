@@ -86,16 +86,21 @@ class ServerConfig:
         for alias in self.aliases:
             realpath = alias.apply(path)
             if realpath:
+                doc_root = alias.dest
                 break
         else:
             realpath = self.fallback_alias.apply(path)
-        return path, realpath
+            doc_root = self.fallback_alias.dest
+        return path, realpath, doc_root
 
     def find_file(self, realpath, indexes = None):
         if os.path.isfile(realpath):
             return realpath
         if realpath.endswith('/') and os.path.isdir(realpath):
-            for i in indexes or self.indexes:
+            if indexes is None:
+                # in case indexes is []
+                indexes = self.indexes
+            for i in indexes:
                 path = os.path.join(realpath, i)
                 if os.path.isfile(path):
                     return path

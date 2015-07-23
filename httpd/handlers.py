@@ -51,7 +51,6 @@ class FCGIHandler(BaseHandler):
                 yield from self.fcgi_handle(path, fcgi_rule)
                 return True
 
-    @asyncio.coroutine
     def fcgi_write(self, data):
         i = 0
         while not self.parent.headers_sent:
@@ -68,9 +67,8 @@ class FCGIHandler(BaseHandler):
                 self.parent.status = int(c), m
             else:
                 self.headers[k] = v
-        yield from self.write(data)
+        self.write(data)
 
-    @asyncio.coroutine
     def fcgi_err(self, data):
         if isinstance(data, bytes):
             data = data.decode('utf-8', 'replace')
@@ -80,10 +78,10 @@ class FCGIHandler(BaseHandler):
     def fcgi_handle(self, path, fcgi_rule):
         self.environ.update({
             'SCRIPT_FILENAME': os.path.abspath(path),
-            'DOCUMENT_ROOT': self.doc_root or '',
-            'SERVER_NAME': self.host or '',
-            'SERVER_SOFTWARE': self.server_version,
-            'REDIRECT_STATUS': self.status[0],
+            'DOCUMENT_ROOT': self.parent.doc_root or '',
+            'SERVER_NAME': self.parent.host or '',
+            'SERVER_SOFTWARE': self.parent.server_version,
+            'REDIRECT_STATUS': self.parent.status[0],
         })
         handler = fcgi.get_dispatcher(fcgi_rule)
         try:
@@ -99,7 +97,6 @@ class FCGIHandler(BaseHandler):
 class FileHandler(BaseHandler):
     @asyncio.coroutine
     def handle(self, realpath):
-        self.logger.debug('File handler')
         path = self.config.find_file(realpath)
         if path:
             mime = config.get_mime(path)

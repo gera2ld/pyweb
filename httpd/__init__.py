@@ -1,11 +1,12 @@
 #!python
 # coding=utf-8
 # Reference: http://www.w3.org/Protocols/rfc2616/rfc2616.html
-# Author: Gerald <gera2ld@163.com>
 # Require: Python 3.4+
 import asyncio
 from . import config, httpd
 from .log import logger
+__version__ = '1.0'
+__author__ = 'Gerald <i@gerald.top>'
 
 def serve():
     loop = asyncio.get_event_loop()

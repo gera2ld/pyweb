@@ -81,7 +81,7 @@ class HTTPHandler:
     def get_path(self, path = None):
         if path is None: path = self.path
         port = self.local_addr[1]
-        path, realpath = self.config.get_path(path)
+        path, realpath, self.doc_root = self.config.get_path(path)
         self.environ['DOCUMENT_URI'] = path
         path, _, query = path.partition('?')
         # TODO add PATH_INFO
@@ -151,7 +151,9 @@ class HTTPHandler:
         if self.protocol_version >= 'HTTP/1.1' and self.request_version >= 'HTTP/1.1':
             self.close_connection = self.environ.get('HTTP_CONNECTION', 'keep-alive') != 'keep-alive'
             self.chunked = True # only allowed in HTTP/1.1
-            if 'Content-Length' in self.headers:
+            if self.status[0] in (204, 304):
+                self.chunked = False
+            elif 'Content-Length' in self.headers:
                 if self.content_encoding == 'deflate':
                     self.chunked = False
                 else:
@@ -306,7 +308,6 @@ class HTTPHandler:
         self.get_path()
         self.handlers = [handler_class(self) for handler_class in self.handler_classes]
         for handler in self.handlers:
-            self.logger.debug(handler)
             ret = yield from handler.handle(self.realpath)
             if ret: break
         self.write(None)

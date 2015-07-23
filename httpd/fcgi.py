@@ -102,7 +102,7 @@ class FCGI:
 				#elif type==FCGI_STDERR:
 				else:
 					write=write_err
-				yield from write(data)
+				write(data)
 	@asyncio.coroutine
 	def fcgi_run(self, write_out, write_err, env, reader, timeout):
 		rec=[]

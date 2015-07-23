@@ -33,14 +33,14 @@ class ChunkedWriter(BaseWriter):
     '''
     def write(self, data):
         if data:
-            self.logger.debug('chunk %d', len(data))
+            #self.logger.debug('chunk %d', len(data))
             self.raw.write(hex(len(data))[2:].encode() + b'\r\n')
             self.raw.write(data)
             self.raw.write(b'\r\n')
 
     def close(self):
         '''write last chunk'''
-        self.logger.debug('chunk 0')
+        #self.logger.debug('chunk 0')
         self.raw.write(b'0\r\n\r\n')
 
 class BufferedWriter(BaseWriter):
@@ -62,7 +62,7 @@ class BufferedWriter(BaseWriter):
             self.flush()
 
     def flush(self):
-        self.logger.debug('BufferedWriter:flush')
+        #self.logger.debug('BufferedWriter:flush')
         if self.buffer:
             data = self.buffer.getvalue()
             if data:
@@ -85,7 +85,7 @@ class GZipWriter(BaseWriter):
         self.buffer.write(data)
 
     def close(self):
-        self.logger.debug('GZipWriter:close')
+        #self.logger.debug('GZipWriter:close')
         #self.buffer.flush()
         self.buffer.close()
         self.raw.flush()
