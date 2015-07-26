@@ -188,6 +188,8 @@ class HTTPHandler:
             writer = self.writer
             if self.chunked:
                 writer = writers.ChunkedWriter(writer, self.logger)
+            else:
+                writer = writers.ShelterWriter(writer, self.logger)
             writer = writers.BufferedWriter(writer, self.logger)
             if self.content_encoding == 'gzip':
                 writer = writers.GZipWriter(writer, self.logger)

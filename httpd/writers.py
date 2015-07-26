@@ -43,6 +43,13 @@ class ChunkedWriter(BaseWriter):
         #self.logger.debug('chunk 0')
         self.raw.write(b'0\r\n\r\n')
 
+class ShelterWriter(BaseWriter):
+    '''
+    Shelter raw writer from being closed.
+    '''
+    def write(self, data):
+        self.raw.write(data)
+
 class BufferedWriter(BaseWriter):
     '''
     A wrapper to buffer data to avoid small pieces of data.
@@ -70,9 +77,6 @@ class BufferedWriter(BaseWriter):
             self.buffer = None
 
     def close(self):
-        '''
-        Shelter raw writer from being closed.
-        '''
         self.flush()
         self.raw.close()
 
