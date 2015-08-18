@@ -11,8 +11,16 @@ or just copy `httpd` to your project.
 
 Usage
 ---
-There is no config file yet.
+``` sh
+$ python -m httpd -p 8000 -r ./
+```
+or use a python script:
+``` python
+from httpd import config, serve
 
-```sh
-$ python -m httpd
+server = config.add_server(port = 80)
+server.add_rewrite('.*', '/index.php')
+server.add_alias('/', 'htdocs/')
+server.add_fastcgi(r'\.php$', [('127.0.0.1', 9000), ('127.0.0.1', 9001)], ['index.php'])
+serve()
 ```
