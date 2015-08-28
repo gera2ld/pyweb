@@ -20,5 +20,5 @@ if __name__=='__main__':
     config.add_gzip(['text/html', 'text/css', 'application/javascript'])
     args = parser.parse_args()
     server = config.add_server(port = args.port)
-    server.add_alias('/', './')
+    server.add_alias('/', args.root)
     serve()

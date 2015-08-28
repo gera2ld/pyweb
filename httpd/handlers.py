@@ -33,6 +33,12 @@ class BaseHandler:
         self.write = parent.write
         self.logger = parent.logger
 
+    def get_status(self):
+        return self.parent.status
+
+    def set_status(self, code, message = None):
+        self.parent.status = int(code), message
+
     @asyncio.coroutine
     def handle(self, realpath):
         '''
@@ -64,7 +70,7 @@ class FCGIHandler(BaseHandler):
             v = v.strip()
             if k.upper() == 'STATUS':
                 c, _, m = v.partition(' ')
-                self.parent.status = int(c), m
+                self.set_status(c, m)
             else:
                 self.headers[k] = v
         self.write(data)
@@ -81,7 +87,7 @@ class FCGIHandler(BaseHandler):
             'DOCUMENT_ROOT': self.parent.doc_root or '',
             'SERVER_NAME': self.parent.host or '',
             'SERVER_SOFTWARE': self.parent.server_version,
-            'REDIRECT_STATUS': self.parent.status[0],
+            'REDIRECT_STATUS': self.get_status()[0],
         })
         handler = fcgi.get_dispatcher(fcgi_rule)
         try:
@@ -109,7 +115,7 @@ class FileHandler(BaseHandler):
                     expire = 0
                 if expire:
                     self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
-                    if self.cache_control(path): return
+                    if self.cache_control(path): return True
                 self.headers['Content-Type'] = mime.name
                 self.send_file(path)
             else:
@@ -120,8 +126,8 @@ class FileHandler(BaseHandler):
         st = os.stat(path)
         self.headers['Last-Modified'] = self.parent.date_time_string(st.st_mtime)
         lm = self.environ.get('HTTP_IF_MODIFIED_SINCE')
-        if lm and self.date_time_compare(lm, st.st_mtime):
-            self.status = 304,
+        if lm and self.parent.date_time_compare(lm, st.st_mtime):
+            self.set_status(304)
             return True
         return False
 
@@ -148,7 +154,7 @@ class FileHandler(BaseHandler):
             else:
                 self.headers['Content-Range'] = 'bytes %d-%d/%d' % (start, end, fs)
                 if self.cache_control(path): return
-                self.status = 206,
+                self.set_status(206)
                 self.send_file(path, start, length)
         else:
             self.send_file(path, length = fs)
