@@ -124,6 +124,7 @@ class Config:
         return server
 
     def add_server(self, host = '', port = 80, exist_ok = True):
+        port = int(port)
         servers = self.servers.setdefault(port, {})
         server = servers.get(host)
         if not exist_ok:
