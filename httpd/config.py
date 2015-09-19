@@ -14,8 +14,8 @@ class RewriteRule:
     _pattern_sub = re.compile(r'\$(?:(\d+)|\{(\d+)\})')
     def _replace(self, matches):
         def get_sub(subs):
-            key = int(m.group(1) or m.group(2))
-            return matches[key - 1] if 0 < key <= length else ''
+            key = int(subs.group(1) or subs.group(2))
+            return groups[key - 1] if 0 < key <= length else ''
         groups = matches.groups()
         length = len(groups)
         return self._pattern_sub.sub(get_sub, self.dest)
