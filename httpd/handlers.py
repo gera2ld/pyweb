@@ -97,7 +97,7 @@ class FCGIHandler(BaseHandler):
                 self.parent.reader, fcgi_rule.timeout
             )
         except ConnectionRefusedError:
-            yield from self.parent.send_error(500, "Failed connecting to FCGI server!")
+            self.parent.send_error(500, "Failed connecting to FCGI server!")
         return True
 
 class FileHandler(BaseHandler):
