@@ -197,11 +197,12 @@ class HTTPHandler:
         if self.command != 'HEAD' and data:
             if isinstance(data, str):
                 data = data.encode('utf-8', 'ignore')
-            if isinstance(data, bytes):
+            if self.chunked_data is not None:
+                self.chunked_data.append(data)
+            elif isinstance(data, bytes):
                 self.buffer.write(data)
             else:
-                for chunk in data:
-                    self.buffer.write(chunk)
+                self.chunked_data = [data]
 
     @asyncio.coroutine
     def parse_request(self):
@@ -264,7 +265,7 @@ class HTTPHandler:
         while True:
             try:
                 yield from self.handle_one_request()
-            except (asyncio.TimeoutError, ConnectionAbortedError):
+            except (asyncio.TimeoutError, ConnectionError):
                 break
             except:
                 import traceback
@@ -280,6 +281,7 @@ class HTTPHandler:
         self.headers_sent = False
         self.headers = http.client.HTTPMessage()
         self.content_encoding = 'deflate'
+        self.chunked_data = None
         try:
             assert (yield from self.parse_request())
         except:
@@ -312,7 +314,13 @@ class HTTPHandler:
         for handler in self.handlers:
             ret = yield from handler.handle(self.realpath)
             if ret: break
-        self.write(None)
+        if self.chunked_data:
+            for gen in self.chunked_data:
+                for chunk in gen:
+                    self.writer.write(chunk)
+                    yield from self.writer.drain()
+        else:
+            self.write(None)
         self.buffer.flush()
         self.buffer.close()
         yield from self.writer.drain()

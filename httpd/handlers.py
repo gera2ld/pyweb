@@ -117,6 +117,7 @@ class FileHandler(BaseHandler):
                     self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
                     if self.cache_control(path): return True
                 self.headers['Content-Type'] = mime.name
+            if mime.name.startswith('text/'):
                 self.send_file(path)
             else:
                 self.write_bin(path)
@@ -138,6 +139,7 @@ class FileHandler(BaseHandler):
         self.write(FileProducer(path, start, length))
 
     def write_bin(self, path):
+        del self.headers['Content-Type']
         self.headers['Content-Type'] = 'application/octet-stream'
         self.headers.add_header('Content-Disposition', 'attachment', filename = os.path.basename(path))
         self.headers['Accept-Ranges'] = 'bytes'
