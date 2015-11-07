@@ -25,10 +25,10 @@ TEMPLATE = (
 
 def render(**kw):
     args = {
-            'title': kw.get('title', 'Super Light HTTP Daemon'),
-            'head': kw.get('head', ''),
-            'header': kw.get('header') or kw.get('title', 'Super Light HTTP Daemon'),
-            'body': kw.get('body', 'Hello world'),
-            'footer': kw.get('footer', ''),
+        'title': kw.get('title', 'Super Light HTTP Daemon'),
+        'head': kw.get('head', ''),
+        'header': kw.get('header') or kw.get('title', 'Super Light HTTP Daemon'),
+        'body': kw.get('body', 'Hello world'),
+        'footer': kw.get('footer', ''),
     }
     return TEMPLATE % args

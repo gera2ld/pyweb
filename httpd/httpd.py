@@ -271,6 +271,10 @@ class HTTPHandler:
                 import traceback
                 traceback.print_exc()
                 break
+            finally:
+                env = self.environ
+                self.logger.info('%s->%s "%s" %d %s', env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
+                        self.requestline, self.status[0], '-')
             if self.close_connection: break
         self.writer.close()
 
@@ -324,8 +328,6 @@ class HTTPHandler:
         self.buffer.flush()
         self.buffer.close()
         yield from self.writer.drain()
-        self.logger.info('%s->%s "%s" %d %s', env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
-                self.requestline, self.status[0], '-')
 
     def redirect(self, url, code = 303, message = None):
         self.status = code,
