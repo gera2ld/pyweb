@@ -83,19 +83,17 @@ class FCGI:
             d.append(v)
         return b''.join(d)
 
-    @asyncio.coroutine
-    def connect(self):
+    async def connect(self):
         host, port = self.addr
-        self.reader, self.writer = yield from asyncio.wait_for(
+        self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(host = host, port = port), 5)
 
-    @asyncio.coroutine
-    def fcgi_parse(self, write_out, write_err):
+    async def fcgi_parse(self, write_out, write_err):
         while True:
-            header = yield from self.reader.readexactly(8)
+            header = await self.reader.readexactly(8)
             version, type, res_id, length, padding = struct.unpack('!BBHHBx', header)
-            data = yield from self.reader.readexactly(length)
-            yield from self.reader.readexactly(padding)
+            data = await self.reader.readexactly(length)
+            await self.reader.readexactly(padding)
             if version != FCGI_VERSION_1 or res_id != self.req_id: continue
             if type == FCGI_END_REQUEST:
                 #sapp, spro = struct.unpack('!IB3x', data)
@@ -108,8 +106,7 @@ class FCGI:
                     write = write_err
                 write(data)
 
-    @asyncio.coroutine
-    def fcgi_run(self, write_out, write_err, env, reader, timeout):
+    async def fcgi_run(self, write_out, write_err, env, reader, timeout):
         rec = []
         rec.extend(self.build_record(FCGI_BEGIN_REQUEST,
                 struct.pack('!HB5x', FCGI_RESPONDER, FCGI_KEEP_CONN),
@@ -124,16 +121,16 @@ class FCGI:
             except: pass
         while length > 0:
             readlen = min(FCGI_MAX_LENGTH, length)
-            data = yield from asyncio.wait_for(reader.read(readlen), timeout)
+            data = await asyncio.wait_for(reader.read(readlen), timeout)
             rec.extend(self.build_record(FCGI_STDIN, data, False))
             length -= len(data)
         rec.extend(self.build_record(FCGI_STDIN))
         r = b''.join(rec)
         if self.writer is None or self.writer._protocol._connection_lost:
-            yield from self.connect()
+            await self.connect()
         self.writer.write(r)
-        yield from self.writer.drain()
-        yield from self.fcgi_parse(write_out,write_err)
+        await self.writer.drain()
+        await self.fcgi_parse(write_out, write_err)
 
 class Dispatcher:
     max_con = 1
@@ -149,8 +146,7 @@ class Dispatcher:
         for addr in addr_list:
             self.con_len.append([addr, 0])
 
-    @asyncio.coroutine
-    def get_worker(self):
+    async def get_worker(self):
         worker = None
         if not self.full:
             try:
@@ -165,14 +161,13 @@ class Dispatcher:
                     item[1] += 1
                     self.con_idx = (self.con_idx + 1) % len(self.con_len)
         if worker is None:
-            worker = yield from self.queue.get()
+            worker = await self.queue.get()
         return worker
 
-    @asyncio.coroutine
-    def fcgi_run(self, *k):
-        worker = yield from self.get_worker()
+    async def fcgi_run(self, *k):
+        worker = await self.get_worker()
         try:
-            yield from worker.fcgi_run(*k)
+            await worker.fcgi_run(*k)
         except Exception as e:
             worker.close()
             raise e

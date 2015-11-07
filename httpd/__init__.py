@@ -1,7 +1,6 @@
 #!python
 # coding=utf-8
 # Reference: http://www.w3.org/Protocols/rfc2616/rfc2616.html
-# Require: Python 3.4+
 import asyncio
 from . import config, httpd
 from .log import logger

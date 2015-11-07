@@ -1,6 +1,6 @@
 Super Light HTTP Daemon
 ===
-This is a super light HTTP daemon based on `asyncio` (requires Python 3.4+).
+This is a super light HTTP daemon based on `asyncio` (requires Python 3.5+).
 
 Installation
 ---

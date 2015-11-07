@@ -76,7 +76,7 @@ class HTTPHandler:
         env['REMOTE_PORT'] = str(self.remote_addr[1])
         env['CONTENT_LENGTH'] = ''
         env['SCRIPT_NAME'] = ''
-        asyncio.async(self.handle())
+        asyncio.ensure_future(self.handle())
 
     def get_path(self, path = None):
         if path is None: path = self.path
@@ -84,7 +84,6 @@ class HTTPHandler:
         path, realpath, self.doc_root = self.config.get_path(path)
         self.environ['DOCUMENT_URI'] = path
         path, _, query = path.partition('?')
-        # TODO add PATH_INFO
         self.environ['SCRIPT_NAME'] = self.path = urllib.parse.unquote(path)
         self.environ['QUERY_STRING'] = query
         self.realpath = urllib.parse.unquote(realpath)
@@ -204,12 +203,11 @@ class HTTPHandler:
             else:
                 self.chunked_data = [data]
 
-    @asyncio.coroutine
-    def parse_request(self):
+    async def parse_request(self):
         self.command = None  # set in case of error on the first line
         self.request_version = version = self.protocol_version
         self.close_connection = 1
-        requestline = yield from asyncio.wait_for(self.reader.readline(), config.KEEP_ALIVE_TIMEOUT)
+        requestline = await asyncio.wait_for(self.reader.readline(), config.KEEP_ALIVE_TIMEOUT)
         if not requestline: return
         self.requestline = requestline.strip().decode()
         words = self.requestline.split()
@@ -241,8 +239,7 @@ class HTTPHandler:
         # Examine the headers and look for a Connection directive.
         headers = []
         while True:
-            line = yield from asyncio.wait_for(self.reader.readline(),
-                    config.KEEP_ALIVE_TIMEOUT)
+            line = await asyncio.wait_for(self.reader.readline(), config.KEEP_ALIVE_TIMEOUT)
             if not line.strip(): break
             headers.append(line.decode())
         try:
@@ -259,12 +256,11 @@ class HTTPHandler:
             self.close_connection = 0
         return True
 
-    @asyncio.coroutine
-    def handle(self):
+    async def handle(self):
         self.close_connection = 1
         while True:
             try:
-                yield from self.handle_one_request()
+                await self.handle_one_request()
             except (asyncio.TimeoutError, ConnectionError):
                 break
             except:
@@ -278,8 +274,7 @@ class HTTPHandler:
             if self.close_connection: break
         self.writer.close()
 
-    @asyncio.coroutine
-    def handle_one_request(self):
+    async def handle_one_request(self):
         self.status = 200, 'OK'
         self.error = 0
         self.headers_sent = False
@@ -287,7 +282,7 @@ class HTTPHandler:
         self.content_encoding = 'deflate'
         self.chunked_data = None
         try:
-            assert (yield from self.parse_request())
+            assert (await self.parse_request())
         except:
             return
         env = self.environ = self.base_environ.copy()
@@ -316,18 +311,18 @@ class HTTPHandler:
         self.get_path()
         self.handlers = [handler_class(self) for handler_class in self.handler_classes]
         for handler in self.handlers:
-            ret = yield from handler.handle(self.realpath)
+            ret = await handler.handle(self.realpath)
             if ret: break
         if self.chunked_data:
             for gen in self.chunked_data:
                 for chunk in gen:
                     self.writer.write(chunk)
-                    yield from self.writer.drain()
+                    await self.writer.drain()
         else:
             self.write(None)
         self.buffer.flush()
         self.buffer.close()
-        yield from self.writer.drain()
+        await self.writer.drain()
 
     def redirect(self, url, code = 303, message = None):
         self.status = code,
