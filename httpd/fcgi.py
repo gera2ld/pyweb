@@ -181,3 +181,9 @@ def get_dispatcher(fcgi_rule):
     if dispatcher is None:
         dispatcher = dispatchers[dispatcher_id] = Dispatcher(fcgi_rule.addr)
     return dispatcher
+
+if __name__ == '__main__':
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(FCGI(('127.0.0.1', 9000), 1).fcgi_run(print, print, {
+        'REQUEST_METHOD': 'GET',
+    }, None, 10))
