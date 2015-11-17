@@ -88,12 +88,12 @@ class FCGI:
         self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(host = host, port = port), 5)
 
-    async def fcgi_parse(self, write_out, write_err):
+    async def fcgi_parse(self, write_out, write_err, timeout):
         while True:
-            header = await self.reader.readexactly(8)
+            header = await asyncio.wait_for(self.reader.readexactly(8), timeout)
             version, type, res_id, length, padding = struct.unpack('!BBHHBx', header)
-            data = await self.reader.readexactly(length)
-            await self.reader.readexactly(padding)
+            data = await asyncio.wait_for(self.reader.readexactly(length), timeout)
+            await asyncio.wait_for(self.reader.readexactly(padding), timeout)
             if version != FCGI_VERSION_1 or res_id != self.req_id: continue
             if type == FCGI_END_REQUEST:
                 #sapp, spro = struct.unpack('!IB3x', data)
@@ -130,7 +130,7 @@ class FCGI:
             await self.connect()
         self.writer.write(r)
         await self.writer.drain()
-        await self.fcgi_parse(write_out, write_err)
+        await self.fcgi_parse(write_out, write_err, timeout)
 
 class Dispatcher:
     max_con = 1
@@ -184,6 +184,7 @@ def get_dispatcher(fcgi_rule):
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(FCGI(('127.0.0.1', 9000), 1).fcgi_run(print, print, {
+    fcgi = FCGI(('127.0.0.1', 9000), 1)
+    loop.run_until_complete(fcgi.fcgi_run(print, print, {
         'REQUEST_METHOD': 'GET',
     }, None, 10))
