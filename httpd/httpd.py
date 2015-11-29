@@ -324,6 +324,8 @@ class HTTPHandler:
         if self.chunked_data:
             for gen in self.chunked_data:
                 for chunk in gen:
+                    if self.writer.transport._conn_lost:
+                        return
                     self.raw_writer.write(chunk)
                     await self.writer.drain()
         else:
