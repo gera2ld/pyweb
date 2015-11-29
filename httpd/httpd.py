@@ -184,11 +184,9 @@ class HTTPHandler:
                         self.content_encoding = 'gzip'
                     break
             self.send_headers()
-            writer = self.writer
+            writer = self.raw_writer = writers.RawWriter(self.writer, self.logger)
             if self.chunked:
                 writer = writers.ChunkedWriter(writer, self.logger)
-            else:
-                writer = writers.ShelterWriter(writer, self.logger)
             writer = writers.BufferedWriter(writer, self.logger)
             if self.content_encoding == 'gzip':
                 writer = writers.GZipWriter(writer, self.logger)
@@ -208,7 +206,7 @@ class HTTPHandler:
         self.request_version = version = self.protocol_version
         self.close_connection = 1
         requestline = await asyncio.wait_for(self.reader.readline(), config.KEEP_ALIVE_TIMEOUT)
-        if not requestline: return
+        if not requestline: return False
         self.requestline = requestline.strip().decode()
         words = self.requestline.split()
         if len(words) == 3:
@@ -268,23 +266,15 @@ class HTTPHandler:
                 traceback.print_exc()
                 break
             finally:
-                env = self.environ
-                self.logger.info('%s->%s "%s" %d %s', env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
-                        self.requestline, self.status[0], '-')
+                env = getattr(self, 'environ')
+                if env:
+                    written = self.raw_writer.written if self.raw_writer else '-'
+                    self.logger.info('%s->%s "%s" %d %s', env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
+                        self.requestline, self.status[0], written)
             if self.close_connection: break
         self.writer.close()
 
-    async def handle_one_request(self):
-        self.status = 200, 'OK'
-        self.error = 0
-        self.headers_sent = False
-        self.headers = http.client.HTTPMessage()
-        self.content_encoding = 'deflate'
-        self.chunked_data = None
-        try:
-            assert (await self.parse_request())
-        except:
-            return
+    def get_environ(self):
         env = self.environ = self.base_environ.copy()
         env['SERVER_PROTOCOL'] = self.request_version
         env['REQUEST_METHOD'] = self.command
@@ -309,6 +299,24 @@ class HTTPHandler:
                 self.port = int(port)
         # SCRIPT_NAME and QUERY_STRING will be set after REWRITE
         self.get_path()
+
+    async def handle_one_request(self):
+        self.status = 200, 'OK'
+        self.error = 0
+        self.headers_sent = False
+        self.headers = http.client.HTTPMessage()
+        self.content_encoding = 'deflate'
+        self.chunked_data = None
+        self.raw_writer = None
+        try:
+            res = await self.parse_request()
+            # res is False when connection is lost
+            assert res is not False
+        except:
+            return
+        self.get_environ()
+        # res is None for bad requests
+        if not res: return
         self.handlers = [handler_class(self) for handler_class in self.handler_classes]
         for handler in self.handlers:
             ret = await handler.handle(self.realpath)
@@ -316,7 +324,7 @@ class HTTPHandler:
         if self.chunked_data:
             for gen in self.chunked_data:
                 for chunk in gen:
-                    self.writer.write(chunk)
+                    self.raw_writer.write(chunk)
                     await self.writer.drain()
         else:
             self.write(None)

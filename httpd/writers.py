@@ -13,6 +13,15 @@ class BaseWriter:
     def close(self):
         pass
 
+class RawWriter(BaseWriter):
+    def __init__(self, raw, logger):
+        super().__init__(raw, logger)
+        self.written = 0
+
+    def write(self, data):
+        self.raw.write(data)
+        self.written += len(data)
+
 class ChunkedWriter(BaseWriter):
     '''
     A wrapper to write data into chunks
@@ -42,13 +51,6 @@ class ChunkedWriter(BaseWriter):
         '''write last chunk'''
         #self.logger.debug('chunk 0')
         self.raw.write(b'0\r\n\r\n')
-
-class ShelterWriter(BaseWriter):
-    '''
-    Shelter raw writer from being closed.
-    '''
-    def write(self, data):
-        self.raw.write(data)
 
 class BufferedWriter(BaseWriter):
     '''

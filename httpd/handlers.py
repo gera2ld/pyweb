@@ -119,7 +119,7 @@ class FileHandler(BaseHandler):
                 self.headers['Content-Type'] = mime.name
             else:
                 self.headers['Content-Type'] = 'application/octet-stream'
-            if mime.name.startswith('text/'):
+            if mime and mime.name.startswith('text/'):
                 self.send_file(path)
             else:
                 self.write_bin(path)
@@ -214,6 +214,7 @@ class DirectoryHandler(BaseHandler):
         if null:
             data.append('<li>Null</li>')
         data.append('</ul>')
+        self.headers['Content-Type'] = 'text/html'
         self.write(template.render(
             title = 'Directory Listing',
             head = (
