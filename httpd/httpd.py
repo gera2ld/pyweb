@@ -266,7 +266,7 @@ class HTTPHandler:
                 traceback.print_exc()
                 break
             finally:
-                env = getattr(self, 'environ')
+                env = getattr(self, 'environ', None)
                 if env:
                     written = self.raw_writer.written if self.raw_writer else '-'
                     self.logger.info('%s->%s "%s" %d %s', env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
@@ -326,7 +326,7 @@ class HTTPHandler:
                 for chunk in gen:
                     if self.writer.transport._conn_lost:
                         return
-                    self.raw_writer.write(chunk)
+                    self.buffer.write(chunk)
                     await self.writer.drain()
         else:
             self.write(None)

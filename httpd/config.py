@@ -155,7 +155,9 @@ class MimeType:
         if expire is not None:
             self.expire = expire
 
-_mimetypes = {}
+_mimetypes = {
+    None: MimeType('application/octet-stream', 0),
+}
 def init_mimetypes():
     if not mimetypes.inited:
         mimetypes.init()
@@ -164,6 +166,6 @@ def init_mimetypes():
 
 def get_mime(path):
     _, ext = os.path.splitext(path)
-    return _mimetypes.get(ext)
+    return _mimetypes.get(ext) or _mimetypes[None]
 
 init_mimetypes()

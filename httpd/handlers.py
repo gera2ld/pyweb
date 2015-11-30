@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-import asyncio, os, html
+import os, html
 from urllib import parse
 from . import config, template, fcgi
 
@@ -39,8 +39,7 @@ class BaseHandler:
     def set_status(self, code, message = None):
         self.parent.status = int(code), message
 
-    @asyncio.coroutine
-    def handle(self, realpath):
+    async def handle(self, realpath):
         '''
         Should be overridden
         '''
@@ -48,13 +47,12 @@ class BaseHandler:
         return True
 
 class FCGIHandler(BaseHandler):
-    @asyncio.coroutine
-    def handle(self, realpath):
+    async def handle(self, realpath):
         fcgi_rule = self.config.get_fastcgi(realpath)
         if fcgi_rule:
             path = self.config.find_file(realpath, fcgi_rule.indexes)
             if path:
-                yield from self.fcgi_handle(path, fcgi_rule)
+                await self.fcgi_handle(path, fcgi_rule)
                 return True
 
     def fcgi_write(self, data):
@@ -80,8 +78,7 @@ class FCGIHandler(BaseHandler):
             data = data.decode('utf-8', 'replace')
         self.logger.warning(data)
 
-    @asyncio.coroutine
-    def fcgi_handle(self, path, fcgi_rule):
+    async def fcgi_handle(self, path, fcgi_rule):
         self.environ.update({
             'SCRIPT_FILENAME': os.path.abspath(path),
             'DOCUMENT_ROOT': self.parent.doc_root or '',
@@ -91,7 +88,7 @@ class FCGIHandler(BaseHandler):
         })
         handler = fcgi.get_dispatcher(fcgi_rule)
         try:
-            yield from handler.fcgi_run(
+            await handler.fcgi_run(
                 self.fcgi_write, self.fcgi_err,
                 self.environ,
                 self.parent.reader, fcgi_rule.timeout
@@ -101,25 +98,21 @@ class FCGIHandler(BaseHandler):
         return True
 
 class FileHandler(BaseHandler):
-    @asyncio.coroutine
-    def handle(self, realpath):
+    async def handle(self, realpath):
         path = self.config.find_file(realpath)
         if path:
             mime = config.get_mime(path)
-            if mime:
-                if mime.expire:
-                    expire = mime.expire
-                elif os.path.isfile(path):
-                    expire = 86400
-                else:
-                    expire = 0
-                if expire:
-                    self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
-                    if self.cache_control(path): return True
-                self.headers['Content-Type'] = mime.name
+            if mime.expire:
+                expire = mime.expire
+            elif os.path.isfile(path):
+                expire = 86400
             else:
-                self.headers['Content-Type'] = 'application/octet-stream'
-            if mime and mime.name.startswith('text/'):
+                expire = 0
+            if expire:
+                self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
+                if self.cache_control(path): return True
+            self.headers['Content-Type'] = mime.name
+            if mime.name.startswith('text/'):
                 self.send_file(path)
             else:
                 self.write_bin(path)
@@ -162,8 +155,7 @@ class FileHandler(BaseHandler):
             self.send_file(path, length = fs)
 
 class DirectoryHandler(BaseHandler):
-    @asyncio.coroutine
-    def handle(self, realpath):
+    async def handle(self, realpath):
         try:
             assert realpath.endswith('/')
             items = sorted(os.listdir(realpath), key = str.upper)
