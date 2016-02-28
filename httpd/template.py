@@ -1,30 +1,19 @@
 #!/usr/bin/env python
 # coding=utf-8
-TEMPLATE = (
-'<!DOCTYPE html>'
-'<html>'
-'<head>'
-'<meta charset=utf-8>'
-'<meta name=viewport content="width=device-width">'
-'<title>%(title)s</title>'
-'%(head)s'
-'<style>'
-'body{font-family:Tahoma;font-size:14px;background:#eee;color:#333;}'
-'a{text-decoration:none;}'
-'a:hover{text-decoration:underline;}'
-'video{width:100%%;}'
-'</style>'
-'</head>'
-'<body>'
-'<h1>%(header)s</h1>'
-'%(body)s'
-'<hr>'
-'%(footer)s'
-'<center>&copy; 2014-2016 <a href=/>Gerald</a></center>'
-'</body>'
-'</html>')
+import os
 
-def render(**kw):
+templates = {}
+
+def read_data():
+    dir_tpl = os.path.join(os.path.dirname(__file__), 'templates')
+    for k in os.listdir(dir_tpl):
+        if not k.endswith('.html'): continue
+        name = k[:-5]
+        templates[name] = open(os.path.join(dir_tpl, k), encoding='utf-8').read()
+
+read_data()
+
+def render(name='base', **kw):
     args = {
         'title': kw.get('title', 'Super Light HTTP Daemon'),
         'head': kw.get('head', ''),
@@ -32,4 +21,4 @@ def render(**kw):
         'body': kw.get('body', 'Hello world'),
         'footer': kw.get('footer', ''),
     }
-    return TEMPLATE % args
+    return templates.get(name, '') % args

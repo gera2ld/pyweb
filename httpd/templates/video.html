@@ -1,0 +1,89 @@
+<button class="video-play">Play All</button>
+<div class="video-player">
+  <div class="video-meta">
+    <div>
+      正在播放：<strong class="video-name">...</strong>
+    </div>
+    <button class="video-close">Close</button>
+  </div>
+  <video controls></video>
+</div>
+<style>
+.video-play {
+  margin-left: 8px;
+}
+.video-player {
+  margin: 1em auto;
+}
+.video-player:not(.active) {
+  display: none;
+}
+</style>
+<script>!function(){
+var $ = queryFactory('querySelector');
+var $$ = queryFactory('querySelectorAll');
+var video = {
+  wrap: $('.video-player'),
+  el: $('video'),
+  btnAll: $('.video-play'),
+};
+video.name = $('.video-name', video.wrap);
+video.el.addEventListener('ended', function (e) {
+  playNext();
+}, false);
+$('.video-close', video.wrap).addEventListener('click', function (e) {
+  playItem(null);
+}, false);
+document.addEventListener('DOMContentLoaded', function (e) {
+  video.data = Array.prototype.map.call($$('.file-video>.link'), function (a) {
+    return {
+      name: a.textContent,
+      url: a.href,
+      node: a.parentNode,
+    };
+  });
+}, false);
+document.addEventListener('click', function (e) {
+  var target = e.target;
+  if (target === video.btnAll) {
+    playAll();
+  } else {
+    var node = target.parentNode;
+    var item = find(video.data, function (item) {return item.node === node;});
+    item && playItem(item);
+  }
+}, false);
+function queryFactory(query) {
+  return function (selector, context) {
+    context = context || document;
+    return context[query].call(context, selector);
+  };
+}
+function find(list, predicate) {
+  var length = list && list.length || 0;
+  for (var i = 0; i < length; i ++) {
+    var item = list[i];
+    if (predicate(item, i, list)) return item;
+  }
+}
+function playAll() {
+  playItem(video.data[0]);
+}
+function playItem(item) {
+  video.current = item;
+  if (!item) {
+    video.name.innerHTML = '';
+    video.el.src = '';
+    video.wrap.classList.remove('active');
+    return;
+  }
+  video.name.textContent = item.name || '我了个去';
+  video.wrap.classList.add('active');
+  video.el.src = item.url;
+  video.el.play();
+}
+function playNext() {
+  var i = video.data.indexOf(video.current);
+  if (~i) playItem(video.data[i + 1]);
+}
+}();</script>

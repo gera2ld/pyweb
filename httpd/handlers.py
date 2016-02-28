@@ -116,16 +116,7 @@ class FileHandler(BaseHandler):
             if mime.name.startswith('text/'):
                 self.send_file(path)
             else:
-                if mime.name.startswith('video/') and self.parent.environ['QUERY_STRING'] == 'play':
-                    self.headers['Content-Type'] = 'text/html'
-                    filename = os.path.basename(path)
-                    self.write(template.render(
-                        title=filename,
-                        header=filename,
-                        body='<video controls src="' + self.parent.path + '"></video>'
-                    ))
-                else:
-                    self.write_bin(path, os.path.basename(path))
+                self.write_bin(path, os.path.basename(path))
             return True
 
     def cache_control(self, path):
@@ -189,7 +180,9 @@ class DirectoryHandler(BaseHandler):
             pre += '../'
             dirs.append(part)
         guide = ' / '.join(reversed(dirs))
-        data = [guide, '<hr><ul>']
+        dataHtml = [guide]
+        data = ['<hr><ul>']
+        hasVideos = False
         null = not items
         files = []
         for item in items:
@@ -212,15 +205,17 @@ class DirectoryHandler(BaseHandler):
                     size = '%.2f' % size
                 url = parse.quote(item)
                 isVideo = is_video(item)
+                hasVideos = hasVideos or isVideo
                 tpl = ''.join((
-                    '<li class="file">',
-                    '<span class="type">[%s%s]</span> ',
-                    '<a href="%s?play" class="button">[PLAY]</a> ' if isVideo else '',
-                    '<a href="%s">%s</a>',
+                    '<li class="file',
+                    ' file-video' if isVideo else '',
+                    '">',
+                        '<span class="type">[%s%s]</span> ',
+                        '<button class="btn-play">Play</button> ' if isVideo else '',
+                        '<a class="link" href="%s">%s</a>',
                     '</li>',
                 ))
                 args = [size, unit]
-                if isVideo: args.append(url)
                 args.extend([url, html.escape(item)])
                 args = tuple(args)
                 files.append(tpl % args)
@@ -228,6 +223,9 @@ class DirectoryHandler(BaseHandler):
         if null:
             data.append('<li>Null</li>')
         data.append('</ul>')
+        if hasVideos:
+            dataHtml.append(template.render(name='video'))
+        dataHtml.extend(data)
         self.headers['Content-Type'] = 'text/html'
         self.write(template.render(
             title = 'Directory Listing',
@@ -239,7 +237,7 @@ class DirectoryHandler(BaseHandler):
                 '</style>'
             ),
             header = 'Directory listing for ' + (dir_path or '/'),
-            body = ''.join(data)
+            body = ''.join(dataHtml)
         ))
         return True
 
