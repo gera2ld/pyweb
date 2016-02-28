@@ -9,9 +9,10 @@ TEMPLATE = (
 '<title>%(title)s</title>'
 '%(head)s'
 '<style>'
-'body{font-family:Tahoma;background:#eee;color:#333;}'
+'body{font-family:Tahoma;font-size:14px;background:#eee;color:#333;}'
 'a{text-decoration:none;}'
 'a:hover{text-decoration:underline;}'
+'video{width:100%%;}'
 '</style>'
 '</head>'
 '<body>'
@@ -19,7 +20,7 @@ TEMPLATE = (
 '%(body)s'
 '<hr>'
 '%(footer)s'
-'<center>&copy; 2014-2015 <a href=/>Gerald</a></center>'
+'<center>&copy; 2014-2016 <a href=/>Gerald</a></center>'
 '</body>'
 '</html>')
 

@@ -39,7 +39,7 @@ class BaseHandler:
     def set_status(self, code, message = None):
         self.parent.status = int(code), message
 
-    async def handle(self, realpath):
+    async def handle(self):
         '''
         Should be overridden
         '''
@@ -47,7 +47,8 @@ class BaseHandler:
         return True
 
 class FCGIHandler(BaseHandler):
-    async def handle(self, realpath):
+    async def handle(self):
+        realpath = self.parent.realpath
         fcgi_rule = self.config.get_fastcgi(realpath)
         if fcgi_rule:
             path = self.config.find_file(realpath, fcgi_rule.indexes)
@@ -98,8 +99,8 @@ class FCGIHandler(BaseHandler):
         return True
 
 class FileHandler(BaseHandler):
-    async def handle(self, realpath):
-        path = self.config.find_file(realpath)
+    async def handle(self):
+        path = self.config.find_file(self.parent.realpath)
         if path:
             mime = config.get_mime(path)
             if mime.expire:
@@ -115,7 +116,16 @@ class FileHandler(BaseHandler):
             if mime.name.startswith('text/'):
                 self.send_file(path)
             else:
-                self.write_bin(path)
+                if mime.name.startswith('video/') and self.parent.environ['QUERY_STRING'] == 'play':
+                    self.headers['Content-Type'] = 'text/html'
+                    filename = os.path.basename(path)
+                    self.write(template.render(
+                        title=filename,
+                        header=filename,
+                        body='<video controls src="' + self.parent.path + '"></video>'
+                    ))
+                else:
+                    self.write_bin(path, os.path.basename(path))
             return True
 
     def cache_control(self, path):
@@ -133,8 +143,9 @@ class FileHandler(BaseHandler):
         self.headers['Content-Length'] = str(length)
         self.write(FileProducer(path, start, length))
 
-    def write_bin(self, path):
-        self.headers.add_header('Content-Disposition', 'attachment', filename = os.path.basename(path))
+    def write_bin(self, path, filename=None):
+        if filename:
+            self.headers.add_header('Content-Disposition', 'attachment', filename=filename)
         self.headers['Accept-Ranges'] = 'bytes'
         fs = os.path.getsize(path)
         if 'HTTP_RANGE' in self.environ:    # self.protocol_version>='HTTP/1.1' and self.request_version>='HTTP/1.1':
@@ -155,7 +166,12 @@ class FileHandler(BaseHandler):
             self.send_file(path, length = fs)
 
 class DirectoryHandler(BaseHandler):
-    async def handle(self, realpath):
+    async def handle(self):
+        def is_video(filename):
+            base, ext = os.path.splitext(filename)
+            return ext in ('.mp4', '.mkv')
+
+        realpath = self.parent.realpath
         try:
             assert realpath.endswith('/')
             items = sorted(os.listdir(realpath), key = str.upper)
@@ -183,9 +199,8 @@ class DirectoryHandler(BaseHandler):
             if os.path.isdir(path):
                 data.append(
                     '<li class="dir">'
-                        '<a href="%s/">'
-                            '<span class="type">[DIR]</span> %s'
-                        '</a>'
+                        '<span class="type">[DIR]</span> '
+                        '<a href="%s/">%s</a>'
                     '</li>' % (parse.quote(item), html.escape(item))
                 )
             else:
@@ -195,13 +210,20 @@ class DirectoryHandler(BaseHandler):
                     size = size / 1024
                 if isinstance(size, float):
                     size = '%.2f' % size
-                files.append(
-                    '<li class="file">'
-                        '<a href="%s">'
-                            '<span class="type">[%s%s]</span> %s'
-                        '</a>'
-                    '</li>' % (parse.quote(item), size, unit, html.escape(item))
-                )
+                url = parse.quote(item)
+                isVideo = is_video(item)
+                tpl = ''.join((
+                    '<li class="file">',
+                    '<span class="type">[%s%s]</span> ',
+                    '<a href="%s?play" class="button">[PLAY]</a> ' if isVideo else '',
+                    '<a href="%s">%s</a>',
+                    '</li>',
+                ))
+                args = [size, unit]
+                if isVideo: args.append(url)
+                args.extend([url, html.escape(item)])
+                args = tuple(args)
+                files.append(tpl % args)
         data.extend(files)
         if null:
             data.append('<li>Null</li>')
@@ -211,8 +233,8 @@ class DirectoryHandler(BaseHandler):
             title = 'Directory Listing',
             head = (
                 '<style>'
-                    'ul{margin:0;padding-left:20px;}'
-                    'li a{display:block;word-break:break-all;}'
+                    'ul{margin:0;padding-left:20px;line-height:2;}'
+                    'li a{word-break:break-all;}'
                     'li.dir{font-weight:bold;}'
                 '</style>'
             ),

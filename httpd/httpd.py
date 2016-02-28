@@ -319,7 +319,7 @@ class HTTPHandler:
         if not res: return
         self.handlers = [handler_class(self) for handler_class in self.handler_classes]
         for handler in self.handlers:
-            ret = await handler.handle(self.realpath)
+            ret = await handler.handle()
             if ret: break
         if self.chunked_data:
             for gen in self.chunked_data:

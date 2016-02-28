@@ -91,6 +91,7 @@ class ServerConfig:
         else:
             realpath = self.fallback_alias.apply(path)
             doc_root = self.fallback_alias.dest
+        realpath = realpath.split('?', 1)[0]
         return path, realpath, doc_root
 
     def find_file(self, realpath, indexes = None):
