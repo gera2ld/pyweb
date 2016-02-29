@@ -1,13 +1,3 @@
-<button class="video-play">Play All</button>
-<div class="video-player">
-  <div class="video-meta">
-    <div>
-      正在播放：<strong class="video-name">...</strong>
-    </div>
-    <button class="video-close">Close</button>
-  </div>
-  <video controls></video>
-</div>
 <style>
 .video-play {
   margin-left: 8px;
@@ -19,6 +9,18 @@
   display: none;
 }
 </style>
+<button class="video-play">Play All</button>
+<div class="video-player">
+  <div class="video-meta">
+    <div>
+      Current video: <strong class="video-name">...</strong>
+    </div>
+    <button class="video-prev">Previous</button>
+    <button class="video-next">Next</button>
+    <button class="video-close">Close</button>
+  </div>
+  <video controls></video>
+</div>
 <script>!function(){
 var $ = queryFactory('querySelector');
 var $$ = queryFactory('querySelectorAll');
@@ -28,9 +30,11 @@ var video = {
   btnAll: $('.video-play'),
 };
 video.name = $('.video-name', video.wrap);
-video.el.addEventListener('ended', function (e) {
-  playNext();
+video.el.addEventListener('ended', playNext, false);
+$('.video-prev', video.wrap).addEventListener('click', function (e) {
+  playOffset(-1);
 }, false);
+$('.video-next', video.wrap).addEventListener('click', playNext, false);
 $('.video-close', video.wrap).addEventListener('click', function (e) {
   playItem(null);
 }, false);
@@ -77,13 +81,16 @@ function playItem(item) {
     video.wrap.classList.remove('active');
     return;
   }
-  video.name.textContent = item.name || '我了个去';
+  video.name.textContent = item.name || 'Mistery';
   video.wrap.classList.add('active');
   video.el.src = item.url;
   video.el.play();
 }
-function playNext() {
+function playOffset(offset) {
   var i = video.data.indexOf(video.current);
-  if (~i) playItem(video.data[i + 1]);
+  if (~i) playItem(video.data[i + offset]);
+}
+function playNext() {
+  playOffset(1);
 }
 }();</script>
