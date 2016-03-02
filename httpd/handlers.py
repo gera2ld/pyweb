@@ -116,7 +116,8 @@ class FileHandler(BaseHandler):
             if mime.name.startswith('text/'):
                 self.send_file(path)
             else:
-                self.write_bin(path, os.path.basename(path))
+                filename = os.path.basename(path)
+                self.write_bin(path, filename)
             return True
 
     def cache_control(self, path):
@@ -160,7 +161,7 @@ class DirectoryHandler(BaseHandler):
     async def handle(self):
         def is_video(filename):
             base, ext = os.path.splitext(filename)
-            return ext in ('.mp4', '.mkv')
+            return ext.lower() in ('.mp4', '.mkv', '.avi')
 
         realpath = self.parent.realpath
         try:

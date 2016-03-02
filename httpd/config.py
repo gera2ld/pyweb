@@ -167,6 +167,6 @@ def init_mimetypes():
 
 def get_mime(path):
     _, ext = os.path.splitext(path)
-    return _mimetypes.get(ext) or _mimetypes[None]
+    return _mimetypes.get(ext.lower()) or _mimetypes[None]
 
 init_mimetypes()
