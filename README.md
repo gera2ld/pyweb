@@ -5,9 +5,10 @@ This is a super light HTTP daemon based on `asyncio` (requires Python 3.5+).
 Installation
 ---
 ``` sh
-$ python setup.py install
+$ pip3 install git+https://github.com/gera2ld/pyhttpd.git
+# Or install from source code
+$ pip3 install ./path/to/pyhttpd
 ```
-or just copy `httpd` to your project.
 
 Usage
 ---
