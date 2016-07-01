@@ -27,7 +27,11 @@ class RewriteRule:
 
 class AliasRule:
     def __init__(self, src, dest):
-        assert src.endswith('/') is dest.endswith('/'), 'Source and destination must be both files or directories.'
+        if not src: src = './'
+        if not dest: dest = './'
+        if src.endswith('/') is not dest.endswith('/'):
+            if not src.endswith('/'): src += '/'
+            if not dest.endswith('/'): dest += '/'
         self.src = src
         self.dest = os.path.expanduser(dest)
         self.len_src = len(src)
