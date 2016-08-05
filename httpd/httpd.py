@@ -1,6 +1,6 @@
 #!python
 # coding=utf-8
-import sys, asyncio, email.parser, http.client, urllib.parse, time
+import sys, asyncio, email.parser, http.client, http.server, urllib.parse, time
 from . import config, handlers, writers, template
 from .log import logger
 
@@ -8,52 +8,8 @@ class HTTPHandler:
     server_version = 'SLHD/1.0'
     sys_version = "Python/" + sys.version.split()[0]
     protocol_version = 'HTTP/1.1'
-    responses = {
-        100: 'Continue',
-        101: 'Switching Protocols',
-        200: 'OK',
-        201: 'Created',
-        202: 'Accepted',
-        203: 'Non-Authoritative Information',
-        204: 'No Content',
-        205: 'Reset Content',
-        206: 'Partial Content',
-        300: 'Multiple Choices',
-        301: 'Moved Permanently',
-        302: 'Found',
-        303: 'See Other',
-        304: 'Not Modified',
-        305: 'Use Proxy',
-        307: 'Temporary Redirect',
-        400: 'Bad Request',
-        401: 'Unauthorized',
-        402: 'Payment Required',
-        403: 'Forbidden',
-        404: 'Not Found',
-        405: 'Method Not Allowed',
-        406: 'Not Acceptable',
-        407: 'Proxy Authentication Required',
-        408: 'Request Timeout',
-        409: 'Conflict',
-        410: 'Gone',
-        411: 'Length Required',
-        412: 'Precondition Failed',
-        413: 'Request Entity Too Large',
-        414: 'Request-URI Too Long',
-        415: 'Unsupported Media Type',
-        416: 'Requested Range Not Satisfiable',
-        417: 'Expectation Failed',
-        428: 'Precondition Required',
-        429: 'Too Many Requests',
-        431: 'Request Header Fields Too Large',
-        500: 'Internal Server Error',
-        501: 'Not Implemented',
-        502: 'Bad Gateway',
-        503: 'Service Unavailable',
-        504: 'Gateway Timeout',
-        505: 'HTTP Version Not Supported',
-        511: 'Network Authentication Required',
-    }
+    # responses is a dict of {status_code: (short_reason, empty_str_or_long_reason)}
+    responses = http.server.BaseHTTPRequestHandler.responses.copy()
     handler_classes = [
         handlers.FCGIHandler,
         handlers.FileHandler,
@@ -94,7 +50,7 @@ class HTTPHandler:
         """Send the response header only."""
         if message is None:
             if code in self.responses:
-                message = self.responses[code]
+                message = self.responses[code][0]
             else:
                 message = ''
         if self.request_version != 'HTTP/0.9':
@@ -345,7 +301,7 @@ class HTTPHandler:
         if code >= 200 and code not in (204, 304):
             self.headers['Content-Type'] = 'text/html'
             if message is None:
-                message = self.responses.get(code, '???')
+                _, message = self.responses.get(code, (None, '???'))
             self.status = code,
             self.write(template.render(
                 title = 'Error...',
