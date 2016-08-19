@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
 import re, mimetypes, os
-KEEP_ALIVE_TIMEOUT = 120
 
 class RewriteRule:
     def __init__(self, src, dest, last = False):
@@ -59,9 +58,13 @@ class FastCGIRule:
             return self
 
 class ServerConfig:
+    keep_alive_timeout = 120
     fallback_alias = AliasRule('/', './')
 
-    def __init__(self, host = '', port = 80):
+    def __init__(self, parent=None, host = '', port = 80):
+        if parent is None:
+            parent = Config()
+        self.parent = parent
         self.host = host
         self.port = port
         self.rewrites = []
@@ -115,9 +118,16 @@ class ServerConfig:
             rule = rule.apply(path)
             if rule: return rule
 
+    def check_gzip(self, *k, **kw):
+        return self.parent.check_gzip(*k, **kw)
+
+    def get_mimetype(self, *k, **kw):
+        return self.parent.get_mimetype(*k, **kw)
+
 class Config:
     def __init__(self):
         self.servers = {}
+        self.mimetypes = {}
         self.gzip_types = set()
 
     # TODO add subdomain support
@@ -135,7 +145,7 @@ class Config:
         if not exist_ok:
             assert server is None, 'Server %s:%d already exists.' % (host, port)
         if server is None:
-            server = servers[host] = ServerConfig(host, port)
+            server = servers[host] = ServerConfig(self, host, port)
         return server
 
     def add_gzip(self, mimetypes):
@@ -146,31 +156,43 @@ class Config:
     def check_gzip(self, mimetype):
         return mimetype in self.gzip_types
 
-config = Config()
-get_server = config.get_server
-add_server = config.add_server
-add_gzip = config.add_gzip
-check_gzip = config.check_gzip
-servers = config.servers
+    def add_mimetype(self, exts, name, expire=None):
+        mimetype = MimeType(name, expire)
+        if not isinstance(exts, list):
+            exts = [exts]
+        for ext in exts:
+            self.mimetypes[ext] = mimetype
+
+    def get_mimetype(self, path=None, ext=None):
+        if path is not None:
+            _, ext = os.path.splitext(path)
+        return MimeType.get(ext, self.mimetypes)
 
 class MimeType:
     expire = 3600
+    types = None
+
     def __init__(self, name, expire = None):
         self.name = name
         if expire is not None:
             self.expire = expire
 
-_mimetypes = {
-    None: MimeType('application/octet-stream', 0),
-}
-def init_mimetypes():
-    if not mimetypes.inited:
-        mimetypes.init()
-    for ext, mime in mimetypes.types_map.items():
-        _mimetypes[ext] = MimeType(mime)
+    @classmethod
+    def initialize(cls):
+        if not mimetypes.inited:
+            mimetypes.init()
+        cls.types = {
+            None: MimeType('application/octet-stream', 0),
+        }
+        for ext, mime in mimetypes.types_map.items():
+            cls.types[ext] = cls(mime)
 
-def get_mime(path):
-    _, ext = os.path.splitext(path)
-    return _mimetypes.get(ext.lower()) or _mimetypes[None]
-
-init_mimetypes()
+    @classmethod
+    def get(cls, ext, types=None):
+        if cls.types is None: cls.initialize()
+        ext = ext.lower()
+        if types is not None:
+            mimetype = types.get(ext)
+        if mimetype is None:
+            mimetype = cls.types.get(ext) or cls.types[None]
+        return mimetype

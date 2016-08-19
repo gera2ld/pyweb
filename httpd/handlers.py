@@ -2,7 +2,7 @@
 # coding=utf-8
 import os, html
 from urllib import parse
-from . import config, template, fcgi
+from . import template, fcgi
 
 class FileProducer:
     bufsize = 4096
@@ -108,7 +108,7 @@ class FileHandler(BaseHandler):
     async def handle(self):
         path = self.config.find_file(self.parent.realpath)
         if path:
-            mime = config.get_mime(path)
+            mime = self.config.get_mimetype(path)
             if mime.expire:
                 expire = mime.expire
             elif os.path.isfile(path):
@@ -123,7 +123,7 @@ class FileHandler(BaseHandler):
                 self.send_file(path)
             else:
                 filename = os.path.basename(path)
-                self.write_bin(path, filename)
+                self.write_bin(path, filename if mime.name == 'application/octet-stream' else None)
             return True
 
     def cache_control(self, path):

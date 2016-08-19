@@ -1,7 +1,7 @@
 #!python
 # coding=utf-8
 import sys, asyncio, email.parser, http.client, http.server, urllib.parse, time
-from . import config, handlers, writers, template
+from . import handlers, writers, template
 from .log import logger
 
 class HTTPHandler:
@@ -16,12 +16,12 @@ class HTTPHandler:
         handlers.DirectoryHandler,
         handlers.NotFoundHandler,
     ]
-    def __init__(self, reader, writer):
+    def __init__(self, reader, writer, config):
         self.reader = reader
         self.writer = writer
         self.remote_addr=writer.get_extra_info('peername')
         self.local_addr=writer.get_extra_info('sockname')
-        self.config = config.get_server(port = self.local_addr[1])
+        self.config = config
         self.logger = logger.getChild(str(self.config.port))
         #self.logger.setLevel(self.conf.get('loglevel')*10)
         env = self.base_environ = {}
@@ -32,7 +32,6 @@ class HTTPHandler:
         env['REMOTE_PORT'] = str(self.remote_addr[1])
         env['CONTENT_LENGTH'] = ''
         env['SCRIPT_NAME'] = ''
-        asyncio.ensure_future(self.handle())
 
     def get_path(self, path = None):
         if path is None: path = self.path
@@ -136,7 +135,7 @@ class HTTPHandler:
             for i in map(lambda x: x.split(';', 1), self.environ.get('HTTP_ACCEPT_ENCODING', '').split(',')):
                 if i[0] == 'gzip':
                     ct = self.headers.get('Content-Type', '')
-                    if config.check_gzip(ct):
+                    if self.config.check_gzip(ct):
                         self.content_encoding = 'gzip'
                     break
             self.send_headers()
@@ -161,7 +160,7 @@ class HTTPHandler:
         self.command = None  # set in case of error on the first line
         self.request_version = version = self.protocol_version
         self.close_connection = 1
-        requestline = await asyncio.wait_for(self.reader.readline(), config.KEEP_ALIVE_TIMEOUT)
+        requestline = await asyncio.wait_for(self.reader.readline(), self.config.keep_alive_timeout)
         if not requestline: return False
         self.requestline = requestline.strip().decode()
         words = self.requestline.split()
@@ -193,7 +192,7 @@ class HTTPHandler:
         # Examine the headers and look for a Connection directive.
         headers = []
         while True:
-            line = await asyncio.wait_for(self.reader.readline(), config.KEEP_ALIVE_TIMEOUT)
+            line = await asyncio.wait_for(self.reader.readline(), self.config.keep_alive_timeout)
             if not line.strip(): break
             headers.append(line.decode())
         try:
