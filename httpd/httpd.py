@@ -1,6 +1,6 @@
 #!python
 # coding=utf-8
-import sys, asyncio, email.parser, http.client, http.server, urllib.parse, time
+import sys, asyncio, email.parser, http.client, http.server, time
 from . import handlers, writers, template
 from .log import logger
 
@@ -32,18 +32,6 @@ class HTTPHandler:
         env['REMOTE_PORT'] = str(self.remote_addr[1])
         env['CONTENT_LENGTH'] = ''
         env['SCRIPT_NAME'] = ''
-
-    def get_path(self, path = None):
-        if path is None: path = self.path
-        port = self.local_addr[1]
-        path, realpath, self.doc_root = self.config.get_path(path)
-        self.environ['DOCUMENT_URI'] = path
-        path, _, query = path.partition('?')
-        self.environ['SCRIPT_NAME'] = self.path = urllib.parse.unquote(path)
-        self.environ['QUERY_STRING'] = query
-        self.realpath = urllib.parse.unquote(realpath)
-        self.logger.debug('Rewrited path: %s', path)
-        self.logger.debug('Real path: %s', self.realpath)
 
     def send_response_only(self, code, message = None):
         """Send the response header only."""
@@ -252,8 +240,6 @@ class HTTPHandler:
             if _:
                 self.host = host
                 self.port = int(port)
-        # SCRIPT_NAME and QUERY_STRING will be set after REWRITE
-        self.get_path()
 
     async def handle_one_request(self):
         self.status = 200, 'OK'
@@ -263,6 +249,7 @@ class HTTPHandler:
         self.content_encoding = 'deflate'
         self.chunked_data = None
         self.raw_writer = None
+        self.realpath = None
         try:
             res = await self.parse_request()
             # res is False when connection is lost

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-import os, html
+import os, html, functools
 from urllib import parse
 from . import template, fcgi
 
@@ -30,6 +30,23 @@ class FileProducer:
             self.fp.close()
             self.fp = None
 
+def with_path(handle):
+    @functools.wraps(handle)
+    async def wrapped_handle(self):
+        parent = self.parent
+        port = parent.local_addr[1]
+        path, realpath, doc_root = self.config.get_path(parent.path)
+        self.environ['DOCUMENT_ROOT'] = doc_root
+        self.environ['DOCUMENT_URI'] = path
+        path, _, query = path.partition('?')
+        self.environ['SCRIPT_NAME'] = self.path = parse.unquote(path)
+        self.environ['QUERY_STRING'] = query
+        self.realpath = parse.unquote(realpath)
+        parent.logger.debug('Rewrited path: %s', path)
+        parent.logger.debug('Real path: %s', self.realpath)
+        return await handle(self)
+    return wrapped_handle
+
 class BaseHandler:
     def __init__(self, parent):
         self.parent = parent
@@ -47,17 +64,16 @@ class BaseHandler:
 
     async def handle(self):
         '''
-        Should be overridden
+        MUST be overridden
         '''
-        self.parent.send_error(404)
-        return True
+        raise NotImplementedError
 
 class FCGIHandler(BaseHandler):
+    @with_path
     async def handle(self):
-        realpath = self.parent.realpath
-        fcgi_rule = self.config.get_fastcgi(realpath)
+        fcgi_rule = self.config.get_fastcgi(self.realpath)
         if fcgi_rule:
-            path = self.config.find_file(realpath, fcgi_rule.indexes)
+            path = self.config.find_file(self.realpath, fcgi_rule.indexes)
             if path:
                 await self.fcgi_handle(path, fcgi_rule)
                 return True
@@ -88,7 +104,6 @@ class FCGIHandler(BaseHandler):
     async def fcgi_handle(self, path, fcgi_rule):
         self.environ.update({
             'SCRIPT_FILENAME': os.path.abspath(path),
-            'DOCUMENT_ROOT': self.parent.doc_root or '',
             'SERVER_NAME': self.parent.host or '',
             'SERVER_SOFTWARE': self.parent.server_version,
             'REDIRECT_STATUS': self.get_status()[0],
@@ -105,8 +120,9 @@ class FCGIHandler(BaseHandler):
         return True
 
 class FileHandler(BaseHandler):
+    @with_path
     async def handle(self):
-        path = self.config.find_file(self.parent.realpath)
+        path = self.config.find_file(self.realpath)
         if path:
             mime = self.config.get_mimetype(path)
             if mime.expire:
@@ -164,19 +180,18 @@ class FileHandler(BaseHandler):
             self.send_file(path, length = fs)
 
 class DirectoryHandler(BaseHandler):
+    @with_path
     async def handle(self):
         def is_video(filename):
             base, ext = os.path.splitext(filename)
             return ext.lower() in ('.mp4', '.mkv', '.avi')
-
-        realpath = self.parent.realpath
         try:
-            assert realpath.endswith('/')
-            items = sorted(os.listdir(realpath), key = str.upper)
+            assert self.realpath.endswith('/')
+            items = sorted(os.listdir(self.realpath), key = str.upper)
         except:
             # not directory or not allowed to read
             return
-        dir_path = self.parent.path.rstrip('/')
+        dir_path = self.path.rstrip('/')
         parts = dir_path.split('/')
         pre = ''
         dirs = []
@@ -195,7 +210,7 @@ class DirectoryHandler(BaseHandler):
         for item in items:
             if item.startswith('.'):
                 continue
-            path = os.path.join(realpath, item)
+            path = os.path.join(self.realpath, item)
             if os.path.isdir(path):
                 data.append(
                     '<li class="dir">'
@@ -249,4 +264,6 @@ class DirectoryHandler(BaseHandler):
         return True
 
 class NotFoundHandler(BaseHandler):
-    pass
+    async def handle(self):
+        self.parent.send_error(404)
+        return True
