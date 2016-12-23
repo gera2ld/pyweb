@@ -76,7 +76,7 @@ class HTTPHandler:
         """Return the server software version string."""
         return self.server_version + ' ' + self.sys_version
 
-    GMT='%a, %d %b %Y %H:%M:%S GMT'
+    GMT = '%a, %d %b %Y %H:%M:%S GMT'
     def date_time_string(self, timestamp=None):
         if timestamp is None:
             timestamp = time.time()
@@ -101,8 +101,8 @@ class HTTPHandler:
                 else:
                     del self.headers['Content-Length']
         else:
-            self.chunked=False
-            self.close_connection = self.environ.get('HTTP_CONNECTION','close') != 'keep-alive'
+            self.chunked = False
+            self.close_connection = self.environ.get('HTTP_CONNECTION', 'close') != 'keep-alive'
         if self.content_encoding == 'gzip':
             self.headers['Content-Encoding'] = 'gzip'
         if self.chunked:
@@ -199,6 +199,7 @@ class HTTPHandler:
 
     async def handle(self):
         self.close_connection = 1
+        self.clean()
         while True:
             try:
                 await self.handle_one_request()
@@ -209,10 +210,12 @@ class HTTPHandler:
                 traceback.print_exc()
                 break
             finally:
+                self.clean()
                 env = getattr(self, 'environ', None)
                 if env:
                     written = self.raw_writer.written if self.raw_writer else '-'
-                    self.logger.info('%s->%s "%s" %d %s', env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
+                    self.logger.info('%s->%s "%s" %d %s',
+                        env['REMOTE_ADDR'], env.get('HTTP_HOST', '-'),
                         self.requestline, self.status[0], written)
             if self.close_connection: break
         self.writer.close()
@@ -241,15 +244,23 @@ class HTTPHandler:
                 self.host = host
                 self.port = int(port)
 
-    async def handle_one_request(self):
+    def clean(self):
+        chunked_data = getattr(self, 'chunked_data', None)
+        if chunked_data is not None:
+            for gen in chunked_data:
+                if hasattr(gen, 'close'):
+                    gen.close()
         self.status = 200, 'OK'
         self.error = 0
         self.headers_sent = False
-        self.headers = http.client.HTTPMessage()
+        self.headers = None
         self.content_encoding = 'deflate'
         self.chunked_data = None
         self.raw_writer = None
         self.realpath = None
+
+    async def handle_one_request(self):
+        self.headers = http.client.HTTPMessage()
         try:
             res = await self.parse_request()
             # res is False when connection is lost

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# coding=utf-8
 import os, html, functools
 from urllib import parse
 from . import template, fcgi
@@ -26,6 +24,8 @@ class FileProducer:
         else:
             raise StopIteration
     def __del__(self):
+        self.close()
+    def close(self):
         if self.fp is not None:
             self.fp.close()
             self.fp = None
