@@ -1,5 +1,3 @@
-#!python
-# coding=utf-8
 import struct, io, asyncio, os
 __all__ = ['getDispatcher']
 

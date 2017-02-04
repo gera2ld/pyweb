@@ -1,11 +1,9 @@
-#!python
-# coding=utf-8
 import sys, asyncio, email.parser, http.client, http.server, time
-from . import handlers, writers, template
+from . import handlers, writers, template, __version__
 from .log import logger
 
 class HTTPHandler:
-    server_version = 'SLHD/1.0'
+    server_version = 'SLHD/' + __version__
     sys_version = "Python/" + sys.version.split()[0]
     protocol_version = 'HTTP/1.1'
     # responses is a dict of {status_code: (short_reason, empty_str_or_long_reason)}

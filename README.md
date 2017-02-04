@@ -10,10 +10,11 @@ $ pip3 install git+https://github.com/gera2ld/pyhttpd.git
 
 Usage
 ---
+Command line usage:
 ``` sh
 $ python -m httpd -p 8000 -r ./
 ```
-or use a python script:
+Programmatic usage:
 ``` python
 from httpd import Config, serve
 
