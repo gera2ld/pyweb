@@ -1,13 +1,12 @@
 import os
 
-templates = {}
+_templates = {}
 
-def read_data():
-    dir_tpl = os.path.join(os.path.dirname(__file__), 'templates')
-    for k in os.listdir(dir_tpl):
+def read_data(directory=os.path.join(os.path.dirname(__file__), 'templates')):
+    for k in os.listdir(directory):
         if not k.endswith('.html'): continue
         name = k[:-5]
-        templates[name] = open(os.path.join(dir_tpl, k), encoding='utf-8').read()
+        _templates[name] = open(os.path.join(directory, k), encoding='utf-8').read()
 
 read_data()
 
@@ -19,4 +18,4 @@ def render(name='base', **kw):
         'body': kw.get('body', 'Hello world'),
         'footer': kw.get('footer', ''),
     }
-    return templates.get(name, '') % args
+    return _templates.get(name, '') % args

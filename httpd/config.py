@@ -1,65 +1,77 @@
-import re, mimetypes, os
+'''
+Configuration of the HTTP server.
+'''
+import re
+import mimetypes
+import os
+import functools
 
-class RewriteRule:
-    def __init__(self, src, dest, last = False):
-        if not isinstance(src, re._pattern_type):
-            src = re.compile(src)
-        self.src = src
-        self.dest = dest
-        self.last = last
+def create_rewrite_rule(src, dest, last=False):
+    if not isinstance(src, re._pattern_type):
+        src = re.compile(src)
+    return src, dest, last
 
-    _pattern_sub = re.compile(r'\$(?:(\d+)|\{(\d+)\})')
-    def _replace(self, matches):
-        def get_sub(subs):
-            key = int(subs.group(1) or subs.group(2))
-            return groups[key - 1] if 0 < key <= length else ''
-        groups = matches.groups()
-        length = len(groups)
-        return self._pattern_sub.sub(get_sub, self.dest)
+def _rewrite_rule_group(groups):
+    length = len(groups)
+    def group(subs):
+        key = int(subs.group(1) or subs.group(2))
+        return groups[key - 1] if 0 < key <= length else ''
+    return group
 
-    def apply(self, path):
-        path, count = self.src.subn(self._replace, path)
-        if count > 0:
-            return path
+_pattern_sub = re.compile(r'\$(?:(\d+)|\{(\d+)\})')
+def _rewrite_rule_sub(dest):
+    def sub(matches):
+        return _pattern_sub.sub(_rewrite_rule_group(matches.groups()), dest)
+    return sub
 
-class AliasRule:
-    def __init__(self, src, dest):
-        if not src: src = './'
-        if not dest: dest = './'
-        if src.endswith('/') is not dest.endswith('/'):
-            if not src.endswith('/'): src += '/'
-            if not dest.endswith('/'): dest += '/'
-        self.src = src
-        self.dest = os.path.expanduser(dest)
-        self.len_src = len(src)
+def _rewrite_rule_apply(rule, path):
+    src, dest, last = rule
+    path, count = src.subn(_rewrite_rule_sub(dest), path)
+    return path if count > 0 else None, last
 
-    def apply(self, path):
-        parts = path[:self.len_src], path[self.len_src:]
-        if (parts[0].endswith('/') or parts[1].startswith('/')) and parts[0] == self.src:
-            return self.dest + parts[1]
+def apply_rewrite_rules(rules, path):
+    for rule in rules:
+        path_, last = _rewrite_rule_apply(rule, path)
+        if path_ is not None:
+            path = path_
+            if last:
+                break
+    return path
 
-class FastCGIRule:
-    timeout = 10
-    def __init__(self, src, addr, indexes, timeout = None):
-        if not isinstance(src, re._pattern_type):
-            src = re.compile(src)
-        self.src = src
-        if not isinstance(addr, list):
-            addr = [addr]
-        self.addr = addr
-        self.indexes = indexes
-        if timeout:
-            self.timeout = timeout
+def create_alias_rule(src, dest):
+    if not src: src = './'
+    if not dest: dest = './'
+    if src.endswith('/') is not dest.endswith('/'):
+        if not src.endswith('/'): src += '/'
+        if not dest.endswith('/'): dest += '/'
+    dest = os.path.expanduser(dest)
+    return src, dest, len(src)
 
-    def apply(self, path):
-        if self.src.search(path):
-            return self
+def apply_alias_rules(rules, path):
+    for rule in rules:
+        src, dest, len_src = rule
+        pre, suf = path[:len_src], path[len_src:]
+        if (pre.endswith('/') or suf.startswith('/')) and pre == src:
+            return dest + suf, dest
+    return '.' + path, './'
+
+def create_fcgi_rule(src, addrs, indexes, timeout=10):
+    if not isinstance(src, re._pattern_type):
+        src = re.compile(src)
+    if isinstance(addrs, str):
+        addrs = addrs,
+    return src, addrs, indexes, timeout
+
+def apply_fcgi_rules(rules, path):
+    for rule in rules:
+        src = rule[0]
+        if src.search(path):
+            return rule
 
 class ServerConfig:
     keep_alive_timeout = 120
-    fallback_alias = AliasRule('/', './')
 
-    def __init__(self, parent=None, host = '', port = 80):
+    def __init__(self, parent=None, host='', port=80):
         if parent is None:
             parent = Config()
         self.parent = parent
@@ -70,36 +82,25 @@ class ServerConfig:
         self.indexes = ['index.html']
         self.fcgi = []
 
-    def add_rewrite(self, src, dest, last = False):
-        self.rewrites.append(RewriteRule(src, dest, last))
+    def add_rewrite(self, src, dest, last=False):
+        self.rewrites.append(create_rewrite_rule(src, dest, last))
 
     def add_alias(self, src, dest):
-        self.aliases.append(AliasRule(src, dest))
+        self.aliases.append(create_alias_rule(src, dest))
 
-    def add_fastcgi(self, src, addr, indexes = None):
-        self.fcgi.append(FastCGIRule(src, addr, indexes))
+    def add_fastcgi(self, src, addr, indexes=None):
+        self.fcgi.append(create_fcgi_rule(src, addr, indexes))
 
     def set_indexes(self, indexes):
         self.indexes = list(indexes)
 
     def get_path(self, path):
-        for rewrite in self.rewrites:
-            _path = rewrite.apply(path)
-            if _path:
-                path = _path
-                if rewrite.last: break
-        for alias in self.aliases:
-            realpath = alias.apply(path)
-            if realpath:
-                doc_root = alias.dest
-                break
-        else:
-            realpath = self.fallback_alias.apply(path)
-            doc_root = self.fallback_alias.dest
+        path = apply_rewrite_rules(self.rewrites, path)
+        realpath, doc_root = apply_alias_rules(self.aliases, path)
         realpath = realpath.split('?', 1)[0]
         return path, realpath, doc_root
 
-    def find_file(self, realpath, indexes = None):
+    def find_file(self, realpath, indexes=None):
         if os.path.isfile(realpath):
             return realpath
         if realpath.endswith('/') and os.path.isdir(realpath):
@@ -112,9 +113,7 @@ class ServerConfig:
                     return path
 
     def get_fastcgi(self, path):
-        for rule in self.fcgi:
-            rule = rule.apply(path)
-            if rule: return rule
+        return apply_fcgi_rules(self.fcgi, path)
 
     def check_gzip(self, *k, **kw):
         return self.parent.check_gzip(*k, **kw)
@@ -129,21 +128,21 @@ class Config:
         self.gzip_types = set()
 
     # TODO add subdomain support
-    def get_server(self, host = '', port = 80):
+    def get_server(self, host='', port=80):
         servers = self.servers.get(port, {})
         server = servers.get(host)
         if server is None and host:
             server = servers.get('')
         return server
 
-    def add_server(self, host = '', port = 80, exist_ok = True):
+    def add_server(self, host='', port=80):
         port = int(port)
         servers = self.servers.setdefault(port, {})
         server = servers.get(host)
-        if not exist_ok:
-            assert server is None, 'Server %s:%d already exists.' % (host, port)
-        if server is None:
-            server = servers[host] = ServerConfig(self, host, port)
+        if server is not None:
+            logger.warn(
+                'Server %s:%d already exists and will be replaced by the latest one.', host, port)
+        server = servers[host] = ServerConfig(self, host, port)
         return server
 
     def add_gzip(self, mimetypes):
@@ -170,7 +169,7 @@ class MimeType:
     expire = 0
     types = None
 
-    def __init__(self, name, expire = None):
+    def __init__(self, name, expire=None):
         self.name = name
         if expire is not None:
             self.expire = expire
