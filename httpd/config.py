@@ -167,7 +167,7 @@ class Config:
         return MimeType.get(ext, self.mimetypes)
 
 class MimeType:
-    expire = 3600
+    expire = 0
     types = None
 
     def __init__(self, name, expire = None):

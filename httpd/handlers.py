@@ -125,13 +125,13 @@ class FileHandler(BaseHandler):
         path = self.config.find_file(self.realpath)
         if path:
             mime = self.config.get_mimetype(path)
-            if mime.expire:
+            if mime.expire is not None:
                 expire = mime.expire
             elif os.path.isfile(path):
                 expire = 86400
             else:
                 expire = 0
-            if expire:
+            if expire is not None:
                 self.headers['Cache-Control'] = 'max-age=%d, must-revalidate' % expire
                 if self.cache_control(path): return True
             self.headers['Content-Type'] = mime.name
