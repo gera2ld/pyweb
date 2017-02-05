@@ -1,4 +1,6 @@
-import os, html, functools
+import os
+import html
+import functools
 from urllib import parse
 from . import template, fcgi
 
@@ -73,7 +75,7 @@ class FCGIHandler(BaseHandler):
     async def handle(self):
         fcgi_rule = self.config.get_fastcgi(self.realpath)
         if fcgi_rule:
-            path = self.config.find_file(self.realpath, fcgi_rule.indexes)
+            path = self.config.find_file(self.realpath, fcgi_rule[2])
             if path:
                 await self.fcgi_handle(path, fcgi_rule)
                 return True
@@ -108,12 +110,12 @@ class FCGIHandler(BaseHandler):
             'SERVER_SOFTWARE': self.parent.server_version,
             'REDIRECT_STATUS': self.get_status()[0],
         })
-        handler = fcgi.get_dispatcher(fcgi_rule)
+        handler = fcgi.Dispatcher.get(fcgi_rule)
         try:
-            await handler.fcgi_run(
-                self.fcgi_write, self.fcgi_err,
+            await handler.run_worker(
+                (self.fcgi_write, self.fcgi_err),
+                self.parent.reader,
                 self.environ,
-                self.parent.reader, fcgi_rule.timeout
             )
         except ConnectionRefusedError:
             self.parent.send_error(500, "Failed connecting to FCGI server!")

@@ -1,188 +1,224 @@
-import struct, io, asyncio, os
-__all__ = ['getDispatcher']
+'''
+FastCGI module
+'''
+import struct
+import io
+import asyncio
 
 # Reference:
 # http://www.fastcgi.com/drupal/node/6?q=node/22
-FCGI_MAX_LENGTH         = 0xffff
+FCGI_MAX_LENGTH = 0xffff
 # Value for version component of FCGI_Header
-FCGI_VERSION_1          = 1
+FCGI_VERSION_1 = 1
 # Values for type component of FCGI_Header
-FCGI_BEGIN_REQUEST      = 1
-FCGI_ABORT_REQUEST      = 2
-FCGI_END_REQUEST        = 3
-FCGI_PARAMS             = 4
-FCGI_STDIN              = 5
-FCGI_STDOUT             = 6
-FCGI_STDERR             = 7
-FCGI_DATA               = 8
-FCGI_GET_VALUES         = 9
-FCGI_GET_VALUES_RESULT  = 10
-FCGI_UNKNOWN_TYPE       = 11
-FCGI_MAXTYPE            = FCGI_UNKNOWN_TYPE
+FCGI_BEGIN_REQUEST = 1
+FCGI_ABORT_REQUEST = 2
+FCGI_END_REQUEST = 3
+FCGI_PARAMS = 4
+FCGI_STDIN = 5
+FCGI_STDOUT = 6
+FCGI_STDERR = 7
+FCGI_DATA = 8
+FCGI_GET_VALUES = 9
+FCGI_GET_VALUES_RESULT = 10
+FCGI_UNKNOWN_TYPE = 11
+FCGI_MAXTYPE = FCGI_UNKNOWN_TYPE
 # Value for requestId component of FCGI_Header
-FCGI_NULL_REQUEST_ID    = 0
+FCGI_NULL_REQUEST_ID = 0
 # Mask for flags component of FCGI_BeginRequestBody
-FCGI_KEEP_CONN          = 1
+FCGI_KEEP_CONN = 1
 # Values for role component of FCGI_BeginRequestBody
-FCGI_RESPONDER          = 1
-FCGI_AUTHORIZER         = 2
-FCGI_FILTER             = 3
+FCGI_RESPONDER = 1
+FCGI_AUTHORIZER = 2
+FCGI_FILTER = 3
 # Values for protocolStatus component of FCGI_EndRequestBody
-FCGI_REQUEST_COMPLETE   = 0
-FCGI_CANT_MPX_CONN      = 1
-FCGI_OVERLOADED         = 2
-FCGI_UNKNOWN_ROLE       = 3
+FCGI_REQUEST_COMPLETE = 0
+FCGI_CANT_MPX_CONN = 1
+FCGI_OVERLOADED = 2
+FCGI_UNKNOWN_ROLE = 3
 # Variable names for FCGI_GET_VALUES / FCGI_GET_VALUES_RESULT records
-FCGI_MAX_CONNS          = "FCGI_MAX_CONNS"
-FCGI_MAX_REQS           = "FCGI_MAX_REQS"
-FCGI_MPXS_CONNS         = "FCGI_MPXS_CONNS"
+FCGI_MAX_CONNS = 'FCGI_MAX_CONNS'
+FCGI_MAX_REQS = 'FCGI_MAX_REQS'
+FCGI_MPXS_CONNS = 'FCGI_MPXS_CONNS'
 
-class FCGI:
+def build_record(req_id, rec_type, data=None, allow_empty=True):
+    '''Build record into a list of bytes'''
+    if isinstance(data, tuple):
+        stream, length = data
+    elif data:
+        stream, length = io.BytesIO(data), len(data)
+    else:
+        stream, length = None, 0
+    while True:
+        buf_len = min(FCGI_MAX_LENGTH, length)
+        data = stream.read(buf_len) if buf_len else b''
+        pad = (8 - buf_len % 8) % 8
+        if buf_len or allow_empty:
+            yield struct.pack(
+                '!BBHHBx', FCGI_VERSION_1, rec_type, req_id, buf_len, pad)
+            if buf_len:
+                yield data
+            if pad:
+                yield struct.pack('%dx' % pad)
+        if not buf_len:
+            break
+        length -= buf_len
+
+def build_name_value_pairs(pairs):
+    '''Build key-value pairs into a byte sequence.'''
+    data = []
+    for key, value in pairs:
+        key = key.encode()
+        value = str(value).encode()
+        for length in (len(key), len(value)):
+            if length > 127:
+                data.append(struct.pack('!L', length | 0x80000000))
+            else:
+                data.append(struct.pack('B', length))
+        data.append(key)
+        data.append(value)
+    return b''.join(data)
+
+class Worker:
+    '''FastCGI worker via a connection.'''
+
     def __init__(self, addr, req_id):
         self.addr = addr
         self.req_id = req_id
         self.reader = self.writer = None
 
     def close(self):
+        '''Close connection.'''
         if self.writer:
             self.writer.close()
             self.writer = None
 
-    def build_record(self, type, data = None, allowEmpty = True):
-        if isinstance(data, tuple):
-            f, L = data
-        elif data:
-            f, L = io.BytesIO(data), len(data)
-        else:
-            f = L = 0
-        while True:
-            l = min(FCGI_MAX_LENGTH, L)
-            data = f.read(l) if l else b''
-            p = (8 - l % 8) % 8
-            if l or allowEmpty:
-                yield struct.pack('!BBHHBx',
-                    FCGI_VERSION_1, type, self.req_id, l, p)
-                if l: yield data
-                if p: yield struct.pack('%dx' % p)
-            if not l: break
-            L -= l
-
-    def build_name_value_pairs(self, env):
-        d = []
-        for k, v in env:
-            k = k.encode()
-            v = str(v).encode()
-            for l in (len(k), len(v)):
-                if l > 127:
-                    d.append(struct.pack('!L', l | 0x80000000))
-                else:
-                    d.append(struct.pack('B', l))
-            d.append(k)
-            d.append(v)
-        return b''.join(d)
-
     async def connect(self):
+        '''Connect to FastCGI server.'''
         host, port = self.addr
         self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(host = host, port = port), 5)
+            asyncio.open_connection(host=host, port=port), 5)
 
-    async def fcgi_parse(self, write_out, write_err, timeout):
+    async def fcgi_parse(self, write, timeout):
+        '''Parse a FastCGI response and pipe to clients.'''
+        write_out, write_err = write
         while True:
             header = await asyncio.wait_for(self.reader.readexactly(8), timeout)
-            version, type, res_id, length, padding = struct.unpack('!BBHHBx', header)
+            version, rec_type, res_id, length, padding = struct.unpack(
+                '!BBHHBx', header)
             data = await asyncio.wait_for(self.reader.readexactly(length), timeout)
             await asyncio.wait_for(self.reader.readexactly(padding), timeout)
-            if version != FCGI_VERSION_1 or res_id != self.req_id: continue
-            if type == FCGI_END_REQUEST:
+            if version != FCGI_VERSION_1 or res_id != self.req_id:
+                continue
+            if rec_type == FCGI_END_REQUEST:
                 #sapp, spro = struct.unpack('!IB3x', data)
                 break
             else:
-                if type == FCGI_STDOUT:
+                if rec_type == FCGI_STDOUT:
                     write = write_out
-                #elif type == FCGI_STDERR:
+                # elif rec_type == FCGI_STDERR:
                 else:
                     write = write_err
                 write(data)
 
-    async def fcgi_run(self, write_out, write_err, env, reader, timeout):
+    async def fcgi_run(self, write, reader, env, timeout):
+        '''Run FastCGI
+
+        - write: (write_out, write_err)
+        - reader: wsgi.input
+        - env: environment variables
+        - timeout
+        '''
         rec = []
-        rec.extend(self.build_record(FCGI_BEGIN_REQUEST,
-                struct.pack('!HB5x', FCGI_RESPONDER, FCGI_KEEP_CONN),
-                False))
-        rec.extend(self.build_record(FCGI_PARAMS,
-            self.build_name_value_pairs(
-                filter(lambda x: not x[0].startswith('gehttpd.'), env.items()),
-            )))
+        rec.extend(build_record(
+            self.req_id, FCGI_BEGIN_REQUEST,
+            struct.pack('!HB5x', FCGI_RESPONDER, FCGI_KEEP_CONN),
+            False,
+        ))
+        rec.extend(build_record(
+            self.req_id, FCGI_PARAMS,
+            build_name_value_pairs((k, v) for k, v in env.items() if not k.startswith('gehttpd.')),
+        ))
         length = 0
         if env['REQUEST_METHOD'] == 'POST':
-            try: length = int(env['CONTENT_LENGTH'])
-            except: pass
+            try:
+                length = int(env['CONTENT_LENGTH'])
+            except ValueError:
+                pass
         while length > 0:
             readlen = min(FCGI_MAX_LENGTH, length)
             data = await asyncio.wait_for(reader.read(readlen), timeout)
-            rec.extend(self.build_record(FCGI_STDIN, data, False))
+            rec.extend(build_record(self.req_id, FCGI_STDIN, data, False))
             length -= len(data)
-        rec.extend(self.build_record(FCGI_STDIN))
-        r = b''.join(rec)
+        rec.extend(build_record(self.req_id, FCGI_STDIN))
+        res = b''.join(rec)
         if self.writer is None or self.writer._protocol._connection_lost:
             await self.connect()
-        self.writer.write(r)
+        self.writer.write(res)
         await self.writer.drain()
-        await self.fcgi_parse(write_out, write_err, timeout)
+        await self.fcgi_parse(write, timeout)
+
 
 class Dispatcher:
-    max_con = 1
-    # PHP on Windows has problems with concurrency
-    if os.name == 'nt':
-        max_con = 1
+    '''Dispatcher of FastCGI workers.
 
-    def __init__(self, addr_list):
-        self.con_len = []
-        self.con_idx = 0
+    PHP on Windows has problems with concurrency
+    '''
+    max_connection = 1
+    pool = {}
+
+    def __init__(self, fcgi_rule):
+        _src, addrs, _indexes, self.timeout = fcgi_rule
+        self.offset = 0
         self.full = False
         self.queue = asyncio.Queue()
-        for addr in addr_list:
-            self.con_len.append([addr, 0])
+        self.connections = [[addr, 0] for addr in addrs]
 
     async def get_worker(self):
+        '''Get an available worker from the pool.'''
         worker = None
         if not self.full:
             try:
                 worker = self.queue.get_nowait()
             except asyncio.queues.QueueEmpty:
-                # No lock is needed since no coroutines here
-                item = self.con_len[self.con_idx]
-                if item[1] >= self.max_con:
+                item = self.connections[self.offset]
+                if item[1] >= self.max_connection:
                     self.full = True
                 else:
-                    worker = FCGI(item[0], item[1])
+                    worker = Worker(item[0], item[1])
                     item[1] += 1
-                    self.con_idx = (self.con_idx + 1) % len(self.con_len)
+                    self.offset = (self.offset + 1) % len(self.connections)
         if worker is None:
             worker = await self.queue.get()
         return worker
 
-    async def fcgi_run(self, *k):
+    async def run_worker(self, write, reader, env):
+        '''Get an available worker and pass the arguments.'''
         worker = await self.get_worker()
         try:
-            await worker.fcgi_run(*k)
-        except Exception as e:
+            await worker.fcgi_run(write, reader, env, timeout=self.timeout)
+        except Exception as exc:
             worker.close()
-            raise e
+            raise exc
         finally:
             self.queue.put_nowait(worker)
 
-dispatchers = {}
-def get_dispatcher(fcgi_rule):
-    dispatcher_id = id(fcgi_rule)
-    dispatcher = dispatchers.get(dispatcher_id)
-    if dispatcher is None:
-        dispatcher = dispatchers[dispatcher_id] = Dispatcher(fcgi_rule.addr)
-    return dispatcher
+    @classmethod
+    def get(cls, fcgi_rule):
+        '''Get a dispatcher based on FCGI rule.'''
+        dispatcher_id = id(fcgi_rule)
+        dispatcher = cls.pool.get(dispatcher_id)
+        if dispatcher is None:
+            dispatcher = cls.pool[dispatcher_id] = cls(fcgi_rule)
+        return dispatcher
 
-if __name__ == '__main__':
+def main():
+    '''Start a worker for test use.'''
     loop = asyncio.get_event_loop()
-    fcgi = FCGI(('127.0.0.1', 9000), 1)
-    loop.run_until_complete(fcgi.fcgi_run(print, print, {
+    fcgi = Worker(('127.0.0.1', 9000), 1)
+    loop.run_until_complete(fcgi.fcgi_run((print, print), {
         'REQUEST_METHOD': 'GET',
     }, None, 10))
+
+if __name__ == '__main__':
+    main()

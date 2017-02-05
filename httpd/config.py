@@ -58,8 +58,9 @@ def apply_alias_rules(rules, path):
 def create_fcgi_rule(src, addrs, indexes, timeout=10):
     if not isinstance(src, re._pattern_type):
         src = re.compile(src)
-    if isinstance(addrs, str):
-        addrs = addrs,
+    for addr in addrs:
+        host, port = addr
+        assert isinstance(host, str) and isinstance(port, int), 'Invalid address'
     return src, addrs, indexes, timeout
 
 def apply_fcgi_rules(rules, path):
