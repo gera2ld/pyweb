@@ -17,8 +17,8 @@ class HTTPHandler:
     def __init__(self, reader, writer, config):
         self.reader = reader
         self.writer = writer
-        self.remote_addr=writer.get_extra_info('peername')
-        self.local_addr=writer.get_extra_info('sockname')
+        self.remote_addr = writer.get_extra_info('peername')
+        self.local_addr = writer.get_extra_info('sockname')
         self.config = config
         self.logger = logger.getChild(str(self.config.port))
         #self.logger.setLevel(self.conf.get('loglevel')*10)
