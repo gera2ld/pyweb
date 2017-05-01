@@ -5,8 +5,7 @@ import logging
 import platform
 import argparse
 from . import __version__
-from .server import serve
-from .config import Config
+from .server import HTTPServer
 from .log import logger
 
 def main():
@@ -26,11 +25,11 @@ def main():
     logger.info(
         'HTTP Server v%s/%s %s - by Gerald',
         __version__, platform.python_implementation(), platform.python_version())
-    config = Config()
-    config.add_gzip(['text/html', 'text/css', 'application/javascript'])
-    server = config.add_server(port=args.port)
+
+    server = HTTPServer(port=args.port)
+    server.add_gzip(['text/html', 'text/css', 'application/javascript'])
     server.add_alias('/', args.root)
-    serve(config)
+    HTTPServer.serve(server)
 
 if __name__ == '__main__':
     main()

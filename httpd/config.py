@@ -69,19 +69,47 @@ def apply_fcgi_rules(rules, path):
         if src.search(path):
             return rule
 
-class ServerConfig:
+class MimeType:
+    expire = 0
+    types = None
+
+    def __init__(self, name, expire=None):
+        self.name = name
+        if expire is not None:
+            self.expire = expire
+
+    @classmethod
+    def initialize(cls):
+        if not mimetypes.inited:
+            mimetypes.init()
+        cls.types = {
+            None: MimeType('application/octet-stream', 0),
+        }
+        for ext, mime in mimetypes.types_map.items():
+            cls.types[ext] = cls(mime)
+
+    @classmethod
+    def get(cls, ext, types=None):
+        if cls.types is None: cls.initialize()
+        ext = ext.lower()
+        if types is not None:
+            mimetype = types.get(ext)
+        if mimetype is None:
+            mimetype = cls.types.get(ext) or cls.types[None]
+        return mimetype
+
+class Config:
     keep_alive_timeout = 120
 
-    def __init__(self, parent=None, host='', port=80):
-        if parent is None:
-            parent = Config()
-        self.parent = parent
+    def __init__(self, host='', port=80):
         self.host = host
         self.port = port
         self.rewrites = []
         self.aliases = []
         self.indexes = ['index.html']
         self.fcgi = []
+        self.gzip_types = set()
+        self.mimetypes = {}
 
     def add_rewrite(self, src, dest, last=False):
         self.rewrites.append(create_rewrite_rule(src, dest, last))
@@ -116,44 +144,6 @@ class ServerConfig:
     def get_fastcgi(self, path):
         return apply_fcgi_rules(self.fcgi, path)
 
-    def check_gzip(self, *k, **kw):
-        return self.parent.check_gzip(*k, **kw)
-
-    def get_mimetype(self, *k, **kw):
-        return self.parent.get_mimetype(*k, **kw)
-
-class Config:
-    def __init__(self):
-        self.servers = {}
-        self.mimetypes = {}
-        self.gzip_types = set()
-
-    # TODO add subdomain support
-    def get_server(self, host='', port=80):
-        servers = self.servers.get(port, {})
-        server = servers.get(host)
-        if server is None and host:
-            server = servers.get('')
-        return server
-
-    def add_server(self, host='', port=80):
-        port = int(port)
-        servers = self.servers.setdefault(port, {})
-        server = servers.get(host)
-        if server is not None:
-            logger.warn(
-                'Server %s:%d already exists and will be replaced by the latest one.', host, port)
-        server = servers[host] = ServerConfig(self, host, port)
-        return server
-
-    def add_gzip(self, mimetypes):
-        if isinstance(mimetypes, str):
-            mimetypes = [mimetypes]
-        self.gzip_types.update(mimetypes)
-
-    def check_gzip(self, mimetype):
-        return mimetype in self.gzip_types
-
     def add_mimetype(self, exts, name, expire=None):
         mimetype = MimeType(name, expire)
         if not isinstance(exts, list):
@@ -166,31 +156,10 @@ class Config:
             _, ext = os.path.splitext(path)
         return MimeType.get(ext, self.mimetypes)
 
-class MimeType:
-    expire = 0
-    types = None
+    def add_gzip(self, mimetypes):
+        if isinstance(mimetypes, str):
+            mimetypes = [mimetypes]
+        self.gzip_types.update(mimetypes)
 
-    def __init__(self, name, expire=None):
-        self.name = name
-        if expire is not None:
-            self.expire = expire
-
-    @classmethod
-    def initialize(cls):
-        if not mimetypes.inited:
-            mimetypes.init()
-        cls.types = {
-            None: MimeType('application/octet-stream', 0),
-        }
-        for ext, mime in mimetypes.types_map.items():
-            cls.types[ext] = cls(mime)
-
-    @classmethod
-    def get(cls, ext, types=None):
-        if cls.types is None: cls.initialize()
-        ext = ext.lower()
-        if types is not None:
-            mimetype = types.get(ext)
-        if mimetype is None:
-            mimetype = cls.types.get(ext) or cls.types[None]
-        return mimetype
+    def check_gzip(self, mimetype):
+        return mimetype in self.gzip_types

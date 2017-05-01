@@ -12,16 +12,28 @@ Usage
 ---
 Command line usage:
 ``` sh
-$ python -m httpd -p 8000 -r ./
+$ python3 -m httpd -p 8000 -r ./
 ```
+
 Programmatic usage:
 ``` python
-from httpd import Config, serve
+# 1. Build server
 
-config = Config()
-server = config.add_server(port = 80)
+from httpd import HTTPServer
+
+server = HTTPServer(port=80)
 server.add_rewrite('.*', '/index.php')
 server.add_alias('/', 'htdocs/')
 server.add_fastcgi(r'\.php$', [('127.0.0.1', 9000), ('127.0.0.1', 9001)], ['index.php'])
-serve(config)
+
+# 2. start server
+
+#   - the quick way
+HTTPServer.serve(server)
+
+#   - or start manually
+import asyncio
+
+server.start()
+asyncio.get_event_loop().run_forever()
 ```
