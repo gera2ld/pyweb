@@ -10,9 +10,16 @@ $ pip3 install git+https://github.com/gera2ld/pyhttpd.git
 
 Usage
 ---
-Command line usage:
-``` sh
-$ python3 -m httpd -p 8000 -r ./
+CLI usage:
+```
+usage: python3 -m httpd [-h] [-b BIND] [-r ROOT]
+
+HTTP server by Gerald.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -b BIND, --bind BIND  the address to bind, default as `:8000`
+  -r ROOT, --root ROOT  the root directory of documents
 ```
 
 Programmatic usage:
@@ -33,7 +40,6 @@ HTTPServer.serve(server)
 
 #   - or start manually
 import asyncio
-
 server.start()
 asyncio.get_event_loop().run_forever()
 ```
