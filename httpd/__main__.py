@@ -14,7 +14,10 @@ def parse_addr(hostname, default_host='', default_port=80):
         if hostname.startswith('['):
             end_offset = hostname.index(']')
             host = hostname[1 : end_offset]
-            port = hostname[end_offset + 1].lstrip(':')
+            port = hostname[end_offset + 1 :]
+            if port:
+                assert port.startswith(':')
+                port = port[1:]
         else:
             host = hostname
             port = default_port
