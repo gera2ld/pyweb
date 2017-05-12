@@ -1,4 +1,6 @@
-import gzip, io
+'''Writers'''
+import gzip
+import io
 
 class BaseWriter:
     def __init__(self, raw, logger):

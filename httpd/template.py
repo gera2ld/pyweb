@@ -1,16 +1,20 @@
+'''Render templates'''
+
 import os
 
-_templates = {}
+_TEMPLATES = {}
 
-def read_data(directory=os.path.join(os.path.dirname(__file__), 'templates')):
+def _read_data(directory=os.path.join(os.path.dirname(__file__), 'templates')):
     for k in os.listdir(directory):
-        if not k.endswith('.html'): continue
+        if not k.endswith('.html'):
+            continue
         name = k[:-5]
-        _templates[name] = open(os.path.join(directory, k), encoding='utf-8').read()
+        _TEMPLATES[name] = open(os.path.join(directory, k), encoding='utf-8').read()
 
-read_data()
+_read_data()
 
 def render(name='base', **kw):
+    '''Render template based on name'''
     args = {
         'title': kw.get('title', 'Super Light HTTP Daemon'),
         'head': kw.get('head', ''),
@@ -18,4 +22,4 @@ def render(name='base', **kw):
         'body': kw.get('body', 'Hello world'),
         'footer': kw.get('footer', ''),
     }
-    return _templates.get(name, '') % args
+    return _TEMPLATES.get(name, '') % args

@@ -1,6 +1,6 @@
 import sys, asyncio, email.parser, http.client, http.server, time
 from . import handlers, writers, template, __version__
-from .log import logger
+from .utils import logger
 
 class HTTPHandler:
     server_version = 'SLHD/' + __version__
@@ -193,6 +193,7 @@ class HTTPHandler:
             self.close_connection = 1
         elif conntype.lower() == 'keep-alive' and self.protocol_version >= "HTTP/1.1":
             self.close_connection = 0
+        self.get_environ()
         return True
 
     async def handle(self):
@@ -265,7 +266,6 @@ class HTTPHandler:
             assert res is not False
         except:
             return
-        self.get_environ()
         # res is None for bad requests
         if not res: return
         self.handlers = [handler_class(self) for handler_class in self.handler_classes]
