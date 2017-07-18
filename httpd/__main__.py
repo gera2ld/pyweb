@@ -1,7 +1,6 @@
 '''
 Main script to start a server.
 '''
-import logging
 import platform
 import argparse
 from . import __version__
@@ -10,13 +9,6 @@ from .utils import logger, parse_addr
 
 def main():
     '''Start server.'''
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    handler.setLevel(logging.DEBUG)
-    fmt = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
-    handler.setFormatter(fmt)
-    logger.addHandler(handler)
-
     parser = argparse.ArgumentParser(prog='python3 -m httpd', description='HTTP server by Gerald.')
     parser.add_argument(
         '-b', '--bind', default=':8000',
