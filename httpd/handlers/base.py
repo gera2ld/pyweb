@@ -1,40 +1,51 @@
+import os
 import functools
 from urllib import parse
 
-def based_on_fs(handle):
+def check_filetype(filepath):
+    if os.path.isdir(filepath):
+        return 'dir'
+    elif os.path.isfile(filepath):
+        return 'file'
+
+class FileSystemInfo:
+    def __init__(self, context, options):
+        root = options.get('root', '.')
+        path = context.request.path
+        pathname, _, query = path.partition('?')
+        pathname = parse.unquote(pathname)
+        self.pathname = pathname
+        context.env.update({
+            'DOCUMENT_ROOT': root,
+            'DOCUMENT_URI': path,
+            'SCRIPT_NAME': pathname,
+            'QUERY_STRING': query,
+        })
+        filepath = os.path.join(root, pathname[1:])
+        filetype = check_filetype(filepath)
+        self.filetype = filetype
+        self.realpath = None if filetype is None else filepath
+
+        # Check index files
+        index = options.get('index')
+        if filetype == 'dir' and index:
+            for item in index:
+                indexpath = os.path.join(filepath, item)
+                indextype = check_filetype(indexpath)
+                if indextype == 'file':
+                    self.realpath = indexpath
+                    self.filetype = indextype
+                    break
+
+def require_fs(handle):
     @functools.wraps(handle)
-    async def wrapped_handle(self):
-        parent = self.parent
-        port = parent.local_addr[1]
-        path, realpath, doc_root = self.config.get_path(parent.path)
-        self.environ['DOCUMENT_ROOT'] = doc_root
-        self.environ['DOCUMENT_URI'] = path
-        path, _, query = path.partition('?')
-        self.environ['SCRIPT_NAME'] = self.path = parse.unquote(path)
-        self.environ['QUERY_STRING'] = query
-        self.realpath = parse.unquote(realpath)
-        parent.logger.debug('Rewrited path: %s', path)
-        parent.logger.debug('Real path: %s', self.realpath)
-        return await handle(self)
+    async def wrapped_handle(self, context, options):
+        self.fs = FileSystemInfo(context, options)
+        return await handle(self, context, options)
     return wrapped_handle
 
 class BaseHandler:
-    def __init__(self, parent):
-        self.parent = parent
-        self.config = parent.config
-        self.headers = parent.headers
-        self.environ = parent.environ
-        self.write = parent.write
-        self.logger = parent.logger
+    fs = None
 
-    def get_status(self):
-        return self.parent.status
-
-    def set_status(self, code, message = None):
-        self.parent.status = int(code), message
-
-    async def handle(self):
-        '''
-        MUST be overridden
-        '''
-        raise NotImplementedError
+    def __repr__(self):
+        return '<{}>'.format(self.__class__.__name__)

@@ -1,0 +1,7 @@
+<li class="file{% if is_video %} file-video{% endif %}">
+  <span class="type">[{{size}}]</span>
+  {% if is_video -%}
+  <button class="btn-play">Play</button>
+  {% endif %}
+  <a class="link" href="{{href|e}}">{{name|e}}</a>
+</li>

@@ -4,6 +4,7 @@ FastCGI module
 import struct
 import io
 import asyncio
+from . import parse_addr
 
 # Reference:
 # http://www.fastcgi.com/drupal/node/6?q=node/22
@@ -99,9 +100,8 @@ class Worker:
         self.reader, self.writer = await asyncio.wait_for(
             asyncio.open_connection(host=host, port=port), 5)
 
-    async def fcgi_parse(self, write, timeout):
+    async def fcgi_parse(self, write_out, write_err, timeout):
         '''Parse a FastCGI response and pipe to clients.'''
-        write_out, write_err = write
         while True:
             header = await asyncio.wait_for(self.reader.readexactly(8), timeout)
             version, rec_type, res_id, length, padding = struct.unpack(
@@ -121,10 +121,11 @@ class Worker:
                     write = write_err
                 write(data)
 
-    async def fcgi_run(self, write, reader, env, timeout):
+    async def fcgi_run(self, write_out, write_err, reader, env, timeout):
         '''Run FastCGI
 
-        - write: (write_out, write_err)
+        - write_out
+        - write_err
         - reader: wsgi.input
         - env: environment variables
         - timeout
@@ -152,12 +153,11 @@ class Worker:
             length -= len(data)
         rec.extend(build_record(self.req_id, FCGI_STDIN))
         res = b''.join(rec)
-        if self.writer is None or self.writer._protocol._connection_lost:
+        if self.writer is None:
             await self.connect()
         self.writer.write(res)
         await self.writer.drain()
-        await self.fcgi_parse(write, timeout)
-
+        await self.fcgi_parse(write_out, write_err, timeout)
 
 class Dispatcher:
     '''Dispatcher of FastCGI workers.
@@ -166,13 +166,15 @@ class Dispatcher:
     '''
     max_connection = 1
     pool = {}
+    timeout = 30
 
-    def __init__(self, fcgi_rule):
-        _src, addrs, _indexes, self.timeout = fcgi_rule
+    def __init__(self, targets):
         self.offset = 0
         self.full = False
         self.queue = asyncio.Queue()
-        self.connections = [[addr, 0] for addr in addrs]
+        if isinstance(targets, str):
+            targets = [targets]
+        self.connections = [[parse_addr(target), 0] for target in targets]
 
     async def get_worker(self):
         '''Get an available worker from the pool.'''
@@ -192,11 +194,11 @@ class Dispatcher:
             worker = await self.queue.get()
         return worker
 
-    async def run_worker(self, write, reader, env):
+    async def run_worker(self, write_out, write_err, reader, env):
         '''Get an available worker and pass the arguments.'''
         worker = await self.get_worker()
         try:
-            await worker.fcgi_run(write, reader, env, timeout=self.timeout)
+            await worker.fcgi_run(write_out, write_err, reader, env, timeout=self.timeout)
         except Exception as exc:
             worker.close()
             raise exc
@@ -204,19 +206,19 @@ class Dispatcher:
             self.queue.put_nowait(worker)
 
     @classmethod
-    def get(cls, fcgi_rule):
+    def get(cls, targets):
         '''Get a dispatcher based on FCGI rule.'''
-        dispatcher_id = id(fcgi_rule)
+        dispatcher_id = id(targets)
         dispatcher = cls.pool.get(dispatcher_id)
         if dispatcher is None:
-            dispatcher = cls.pool[dispatcher_id] = cls(fcgi_rule)
+            dispatcher = cls.pool[dispatcher_id] = cls(targets)
         return dispatcher
 
 def main():
     '''Start a worker for test use.'''
     loop = asyncio.get_event_loop()
     fcgi = Worker(('127.0.0.1', 9000), 1)
-    loop.run_until_complete(fcgi.fcgi_run((print, print), {
+    loop.run_until_complete(fcgi.fcgi_run(print, print, {
         'REQUEST_METHOD': 'GET',
     }, None, 10))
 

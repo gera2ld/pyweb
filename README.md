@@ -24,22 +24,38 @@ optional arguments:
 
 Programmatic usage:
 ``` python
-# 1. Build server
+from httpd.server import HTTPDaemon
 
-from httpd import HTTPServer
-
-server = HTTPServer(port=80)
-server.add_rewrite('.*', '/index.php')
-server.add_alias('/', 'htdocs/')
-server.add_fastcgi(r'\.php$', [('127.0.0.1', 9000), ('127.0.0.1', 9001)], ['index.php'])
-
-# 2. start server
-
-#   - the quick way
-HTTPServer.serve(server)
-
-#   - or start manually
-import asyncio
-server.start()
-asyncio.get_event_loop().run_forever()
+# Options are optional
+server = HTTPDaemon({
+    'host': '',
+    'port': 80,
+    'match': None,
+    'handler': [
+        {
+            'handler': 'fcgi',
+            'options': {
+                'fcgi_ext': '.php',
+                'fcgi_target': ['127.0.0.1:9000'],
+                'index': [
+                    'index.php',
+                ],
+            },
+        },
+        'file',
+        'dir',
+    ],
+    'gzip': [
+        'text/html',
+        'text/css',
+        'application/javascript',
+    ],
+    'options': {
+        'root': '.',
+        'index': [
+            'index.html',
+        ],
+    },
+})
+server.serve()
 ```

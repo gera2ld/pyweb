@@ -1,39 +1,38 @@
 import os
 import asyncio
-from .. import httpd
 from ..utils import logger
-from .base import Config
+from .context import HTTPContext
+from .matcher import normalize_config
 
-class HTTPServer(Config):
-    def __init__(self, *k, loop=None, **kw):
-        super().__init__(*k, **kw)
+class HTTPDaemon:
+    def __init__(self, config, loop=None):
         if loop is None:
             loop = asyncio.get_event_loop()
         self.loop = loop
-        self.started = None
+        self.config = normalize_config(config)
+        self.servers = []
+        logger.debug('%s', self.config)
 
-    async def _start(self):
+    async def start_server(self, config_item):
         async def handle(reader, writer):
-            handler = httpd.HTTPHandler(reader, writer, self)
+            handler = HTTPContext(reader, writer, config_item)
             await handler.handle()
-        self._server = await asyncio.start_server(handle, self.host, self.port, loop=self.loop)
-        self.hostnames = (sock.getsockname() for sock in self._server.sockets)
+        host = config_item.get('host', '')
+        port = config_item.get('port', 80)
+        server = await asyncio.start_server(handle, host, port, loop=self.loop)
+        self.servers.append(server)
 
-    def start(self):
-        if not self.started:
-            self.started = asyncio.ensure_future(self._start())
-        return self.started
+    async def start_servers(self):
+        await asyncio.gather(*(self.start_server(item) for item in self.config))
 
-    @staticmethod
-    def serve(servers, loop=None):
-        if isinstance(servers, HTTPServer):
-            servers = [servers]
+    def serve(self):
+        loop = self.loop
         if loop is None:
             loop = asyncio.get_event_loop()
-        loop.run_until_complete(asyncio.gather(*(
-            server.start() for server in servers)))
-        for server in servers:
-            for hostname in server.hostnames:
+        loop.run_until_complete(self.start_servers())
+        for server in self.servers:
+            for sock in server.sockets:
+                hostname = sock.getsockname()
                 logger.info('Serving on %s, port %d', *hostname[:2])
         if os.name == 'nt':
             def wake_up_later():

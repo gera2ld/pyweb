@@ -4,5 +4,3 @@ Implementations: RFC2616
 '''
 __version__ = '1.0'
 __author__ = 'Gerald <i@gerald.top>'
-
-from .server import HTTPServer
