@@ -22,6 +22,8 @@ class FileSystemInfo:
             'QUERY_STRING': query,
         })
         filepath = os.path.join(root, pathname[1:])
+        if os.name == 'nt':
+            filepath = filepath.replace('\\', '/')
         filetype = check_filetype(filepath)
         self.filetype = filetype
         self.realpath = None if filetype is None else filepath
@@ -36,6 +38,9 @@ class FileSystemInfo:
                     self.realpath = indexpath
                     self.filetype = indextype
                     break
+
+    def __repr__(self):
+        return f'<FileSystemInfo type={self.filetype} path={self.pathname} realpath={self.realpath}>'
 
 def require_fs(handle):
     @functools.wraps(handle)
