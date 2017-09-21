@@ -7,9 +7,9 @@ if not mimetypes.inited:
 mimetypes.add_type('.js', 'application/javascript')
 
 expires = {
-    'application/javascript': 86400,
-    'text/css': 86400,
-    'text/html': 86400,
+    # 'application/javascript': 86400,
+    # 'text/css': 86400,
+    # 'text/html': 86400,
 }
 
 def checkmime(filepath):
