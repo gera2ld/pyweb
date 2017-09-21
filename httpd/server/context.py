@@ -65,6 +65,7 @@ class HTTPContext:
 
     async def handle_one_request(self):
         self.request = Request(self.reader, self.protocol_version, self.config.get('keep_alive_timeout', 120), self.env)
+        self.headers = http.client.HTTPMessage()
         try:
             assert await self.request.parse()
         except errors.HTTPError as e:
@@ -75,7 +76,6 @@ class HTTPContext:
             self.keep_alive = False
             return
         self.keep_alive = self.request.keep_alive
-        self.headers = http.client.HTTPMessage()
         for handle, options in iter_handlers(self.request, self.config):
             self.logger.debug('get handler: %s, %s', handle, options)
             gen = await handle(self, options)
