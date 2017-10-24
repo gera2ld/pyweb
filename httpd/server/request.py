@@ -27,16 +27,12 @@ class Request:
         if not self.requestline:
             return
         words = self.requestline.split(' ')
-        if len(words) != 3:
-            raise errors.HTTPError(400, "Bad request syntax (%r)" % self.requestline)
+        assert len(words) == 3, 'Bad request syntax (%r)' % self.requestline
         self.method, self.path, version = words
-        try:
-            assert version.startswith('HTTP/')
-            version_number = version[5:].split('.')
-            assert len(version_number) == 2
-            protocol_version = tuple(map(int, version_number))
-        except AssertionError:
-            raise errors.HTTPError(400, 'Bad request version (%r)' % version)
+        assert version.startswith('HTTP/'), 'Bad request version (%r)' % version
+        version_number = version[5:].split('.')
+        assert len(version_number) == 2, 'Bad request version (%r)' % version
+        protocol_version = tuple(map(int, version_number))
         if protocol_version >= (2, 0):
             raise errors.HTTPError(505, "Invalid HTTP Version (%s)" % version)
         if protocol_version >= (1, 1):

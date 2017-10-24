@@ -71,6 +71,7 @@ class HTTPContext:
         except errors.HTTPError as e:
             print(e)
             self.send_error(e.status_code, e.long_msg)
+            self.keep_alive = False
             return
         except AssertionError:
             self.keep_alive = False
