@@ -69,8 +69,11 @@ class HTTPContext:
         try:
             assert await self.request.parse()
         except errors.HTTPError as e:
-            print(e)
             self.send_error(e.status_code, e.long_msg)
+            self.keep_alive = False
+            return
+        except UnicodeDecodeError as e:
+            self.logger.debug('unicode error: %s', e.object)
             self.keep_alive = False
             return
         except AssertionError:
