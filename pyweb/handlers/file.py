@@ -1,6 +1,7 @@
 import os
 from .base import require_fs, BaseHandler
-from ..utils import FileProducer, time_utils
+from ..utils import time as time_utils
+from ..utils.producers import FileProducer
 from ..utils.mime import checkmime
 
 __all__ = ['FileHandler']
@@ -24,9 +25,9 @@ class FileHandler(BaseHandler):
 
     def cache_control(self, context, path):
         st = os.stat(path)
-        context.headers['Last-Modified'] = time_utils.date_time_string(st.st_mtime)
+        context.headers['Last-Modified'] = time_utils.datetime_string(st.st_mtime)
         lm = context.env.get('HTTP_IF_MODIFIED_SINCE')
-        if lm and time_utils.date_time_compare(lm, st.st_mtime):
+        if lm and time_utils.datetime_compare(lm, st.st_mtime):
             context.set_status(304)
             return True
         return False

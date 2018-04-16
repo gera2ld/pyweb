@@ -4,7 +4,7 @@ import http.client
 import http.server
 import logging
 from .. import __version__
-from ..utils import logger, writers, errors, time_utils, template
+from ..utils import logger, writers, errors, time as time_utils, template
 from .request import Request
 from .matcher import iter_handlers
 
@@ -83,16 +83,15 @@ class HTTPContext:
         for handle, options in iter_handlers(self.request, self.config):
             self.logger.debug('get handler: %s, %s', handle, options)
             gen = await handle(self, options)
-            if gen is True:
-                self.write(None)
-            elif gen:
-                for chunk in gen:
-                    self.write(chunk)
-                    await self.writer.drain()
             if gen:
+                if gen is not True:
+                    for chunk in gen:
+                        self.write(chunk)
+                        await self.writer.drain()
                 break
         else:
             self.send_error(404)
+        self.write(None)
         self.buffer.flush()
         self.buffer.close()
         await self.writer.drain()
@@ -144,7 +143,7 @@ class HTTPContext:
         if self.chunk_mode:
             self.headers['transfer-encoding'] = 'chunked'
         self.headers.add_header('Server', self.version_string)
-        self.headers.add_header('Date', time_utils.date_time_string())
+        self.headers.add_header('Date', time_utils.datetime_string())
         # send headers
         self.send_response_only(*self.status)
         self.headers_sent = True

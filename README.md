@@ -1,30 +1,30 @@
-Super Light HTTP Daemon
+pyweb
 ===
-This is a super light HTTP daemon based on `asyncio` (requires Python 3.5+).
+This is a super light web server based on `asyncio` (requires Python 3.5+).
 
 Installation
 ---
 ``` sh
-$ pip3 install git+https://github.com/gera2ld/pyhttpd.git
+$ pip3 install git+https://github.com/gera2ld/pyweb.git
 ```
 
 Usage
 ---
 CLI usage:
 ```
-usage: python3 -m httpd [-h] [-b BIND] [-r ROOT]
+Usage: pyweb [OPTIONS]
 
-HTTP server by Gerald.
+  Start a web server with pyweb.
 
-optional arguments:
-  -h, --help            show this help message and exit
-  -b BIND, --bind BIND  the address to bind, default as `:8000`
-  -r ROOT, --root ROOT  the root directory of documents
+Options:
+  -b, --bind TEXT  the address to bind, default as `:4000`
+  -r, --root TEXT  the root directory of documents
+  --help           Show this message and exit.
 ```
 
 Programmatic usage:
 ``` python
-from httpd.server import HTTPDaemon
+from pyweb.server import HTTPDaemon
 
 # Options are optional
 server = HTTPDaemon({

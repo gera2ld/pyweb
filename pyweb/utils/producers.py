@@ -1,27 +1,3 @@
-from .logger import logger
-
-def parse_addr(hostname, default_host='', default_port=80):
-    if hostname.count(':') > 1:
-        # IPv6
-        if hostname.startswith('['):
-            end_offset = hostname.index(']')
-            host = hostname[1 : end_offset]
-            port = hostname[end_offset + 1 :]
-            if port:
-                assert port.startswith(':')
-                port = port[1:]
-        else:
-            host = hostname
-            port = default_port
-    else:
-        # IPv4
-        host, _, port = hostname.partition(':')
-    try:
-        port = int(port)
-    except:
-        port = default_port
-    return host, port
-
 class FileProducer:
     bufsize = 4096
     fp = None

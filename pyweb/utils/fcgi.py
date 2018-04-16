@@ -4,7 +4,7 @@ FastCGI module
 import struct
 import io
 import asyncio
-from . import parse_addr
+from .parser import parse_addr
 
 # Reference:
 # http://www.fastcgi.com/drupal/node/6?q=node/22

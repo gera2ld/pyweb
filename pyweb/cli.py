@@ -1,28 +1,23 @@
-'''
-Main script to start a server.
-'''
+# -*- coding: utf-8 -*-
+
+"""Console script for pyweb."""
+import sys
 import platform
-import argparse
+import click
 from . import __version__
 from .server import HTTPDaemon
 from .utils import logger, parse_addr
 
-def main():
-    '''Start server.'''
-    parser = argparse.ArgumentParser(prog='python3 -m httpd', description='HTTP server by Gerald.')
-    parser.add_argument(
-        '-b', '--bind', default=':4000',
-        help='the address to bind, default as `:4000`')
-    parser.add_argument(
-        '-r', '--root', default='.',
-        help='the root directory of documents')
-    args = parser.parse_args()
 
+@click.command()
+@click.option('-b', '--bind', default=':4000', help='the address to bind, default as `:4000`')
+@click.option('-r', '--root', default='.', help='the root directory of documents')
+def main(bind, root):
+    """Start a web server with pyweb."""
+    host, port = parse_addr(bind, default=('', 4000))
     logger.info(
         'HTTP Server v%s/%s %s - by Gerald',
         __version__, platform.python_implementation(), platform.python_version())
-
-    host, port = parse_addr(args.bind, default_host='', default_port=4000)
     server = HTTPDaemon({
         'host': host,
         'port': port,
@@ -47,13 +42,15 @@ def main():
             'application/javascript',
         ],
         'options': {
-            'root': args.root,
+            'root': root,
             'index': [
                 'index.html',
             ],
         },
     })
     server.serve()
+    return 0
 
-if __name__ == '__main__':
-    main()
+
+if __name__ == "__main__":
+    sys.exit(main())  # pragma: no cover
