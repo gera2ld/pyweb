@@ -21,7 +21,7 @@ def get_template(dirname, name):
         cache[key] = template
     return template
 
-def render(dirname=BASE_DIR, name='base', args={}):
+def render(name='base', args={}, dirname=BASE_DIR):
     '''Render template based on name or filename'''
     template = get_template(dirname, name)
     if template is None:

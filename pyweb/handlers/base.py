@@ -21,7 +21,10 @@ class FileSystemInfo:
             'SCRIPT_NAME': pathname,
             'QUERY_STRING': query,
         })
-        filepath = os.path.join(root, pathname[1:])
+        if pathname.startswith('/~/'):
+            filepath = os.path.join(os.path.dirname(__file__), '../static', pathname[3:])
+        else:
+            filepath = os.path.join(root, pathname[1:])
         if os.name == 'nt':
             filepath = filepath.replace('\\', '/')
         filetype = check_filetype(filepath)

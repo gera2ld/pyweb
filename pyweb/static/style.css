@@ -1,0 +1,56 @@
+body {
+  font-family: Tahoma;
+  font-size: 14px;
+  background: #eee;
+  color: #333;
+}
+
+a {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+footer {
+  margin-top: 1rem;
+  padding: .5rem;
+  border-top: 1px solid gray;
+}
+
+video {
+  width: 100%;
+}
+
+h1 {
+  margin-bottom: 1rem;
+}
+
+ul {
+  margin: 0;
+  padding-left: 2rem;
+  line-height: 2;
+}
+
+li a {
+  word-break: break-all;
+}
+li.dir {
+  font-weight: bold;
+}
+
+.guide {
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid gray;
+}
+
+.video-play {
+  margin-left: .5rem;
+}
+.video-player {
+  margin: 1rem auto;
+}
+.video-player:not(.active) {
+  display: none;
+}
