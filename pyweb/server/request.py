@@ -73,7 +73,7 @@ class Request:
                 self.env[key] = oldvalue + ',' + value
         self.env['REQUEST_URI'] = self.path
         host = self.env.get('HTTP_HOST')
-        self.port = 80
+        self.port = None
         if host:
             hostname, _, port = host.rpartition(':')
             if _:

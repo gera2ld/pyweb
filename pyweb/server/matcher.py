@@ -112,5 +112,5 @@ def iter_handlers(request, config, options={}):
         match = config.get('match')
         handler = config.get('handler')
         options = config.get('options')
-        if (port is None or request.port == port) and match_request(request, match):
+        if (port is None or request.port is None or request.port == port) and match_request(request, match):
             yield from iter_handlers(request, handler, options)
