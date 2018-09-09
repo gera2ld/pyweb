@@ -1,5 +1,5 @@
 import re
-from ..handlers import FileHandler, DirectoryHandler, FCGIHandler
+from ..handlers import *
 
 def error_handler(code):
     if code > 300 and code <= 999:
