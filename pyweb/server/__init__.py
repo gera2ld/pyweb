@@ -1,5 +1,5 @@
-import os
 import asyncio
+from pyserve import serve_forever
 from ..utils import logger
 from .context import HTTPContext
 from .matcher import normalize_config
@@ -30,12 +30,4 @@ class HTTPDaemon:
         if loop is None:
             loop = asyncio.get_event_loop()
         loop.run_until_complete(self.start_servers())
-        for server in self.servers:
-            for sock in server.sockets:
-                hostname = sock.getsockname()
-                logger.info('Serving on %s, port %d', *hostname[:2])
-        if os.name == 'nt':
-            def wake_up_later():
-                loop.call_later(.1, wake_up_later)
-            wake_up_later()
-        loop.run_forever()
+        serve_forever(self.servers, loop)
