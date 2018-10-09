@@ -1,6 +1,7 @@
 import os
 import functools
 from urllib import parse
+from ..utils import errors
 
 def check_filetype(filepath):
     if os.path.isdir(filepath):
@@ -45,12 +46,25 @@ class FileSystemInfo:
     def __repr__(self):
         return f'<FileSystemInfo type={self.filetype} path={self.pathname} realpath={self.realpath}>'
 
-def require_fs(handle):
+def prepare_fs(handle):
     @functools.wraps(handle)
     async def wrapped_handle(self, context, options):
         self.fs = FileSystemInfo(context, options)
         return await handle(self, context, options)
     return wrapped_handle
+
+default_methods = {'HEAD', 'GET'}
+def allowed_methods(methods = ()):
+    methods = set(methods)
+    methods.update(default_methods)
+    def wrapper(handle):
+        @functools.wraps(handle)
+        async def wrapped_handle(self, context, options):
+            if context.request.method not in methods:
+                raise errors.HTTPError(405)
+            return await handle(self, context, options)
+        return wrapped_handle
+    return wrapper
 
 class BaseHandler:
     fs = None

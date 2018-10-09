@@ -1,11 +1,11 @@
 import os
 from ..utils import fcgi
-from .base import BaseHandler, require_fs
+from .base import BaseHandler, prepare_fs
 
 __all__ = ['FCGIHandler']
 
 class FCGIHandler(BaseHandler):
-    @require_fs
+    @prepare_fs
     async def __call__(self, context, options):
         if self.fs.filetype != 'file':
             return

@@ -1,5 +1,5 @@
 import os
-from .base import require_fs, BaseHandler
+from .base import BaseHandler, prepare_fs, allowed_methods
 from ..utils import time as time_utils
 from ..utils.producers import FileProducer
 from ..utils.mime import checkmime
@@ -7,7 +7,8 @@ from ..utils.mime import checkmime
 __all__ = ['FileHandler']
 
 class FileHandler(BaseHandler):
-    @require_fs
+    @prepare_fs
+    @allowed_methods()
     async def __call__(self, context, options):
         if self.fs.filetype != 'file':
             return

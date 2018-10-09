@@ -67,30 +67,30 @@ class HTTPContext:
         self.request = Request(self.reader, self.protocol_version, self.config.get('keep_alive_timeout', 120), self.env)
         self.headers = http.client.HTTPMessage()
         try:
-            assert await self.request.parse()
+            try:
+                assert await self.request.parse()
+            except UnicodeDecodeError as e:
+                self.logger.debug('unicode error: %s', e.object)
+                self.keep_alive = False
+                return
+            except AssertionError:
+                self.keep_alive = False
+                return
+            self.keep_alive = self.request.keep_alive
+            for handle, options in iter_handlers(self.request, self.config):
+                self.logger.debug('get handler: %s, %s', handle, options)
+                gen = await handle(self, options)
+                if gen:
+                    if gen is not True:
+                        for chunk in gen:
+                            self.write(chunk)
+                            await self.writer.drain()
+                    break
+            else:
+                self.send_error(404)
         except errors.HTTPError as e:
             self.send_error(e.status_code, e.long_msg)
             self.keep_alive = False
-            return
-        except UnicodeDecodeError as e:
-            self.logger.debug('unicode error: %s', e.object)
-            self.keep_alive = False
-            return
-        except AssertionError:
-            self.keep_alive = False
-            return
-        self.keep_alive = self.request.keep_alive
-        for handle, options in iter_handlers(self.request, self.config):
-            self.logger.debug('get handler: %s, %s', handle, options)
-            gen = await handle(self, options)
-            if gen:
-                if gen is not True:
-                    for chunk in gen:
-                        self.write(chunk)
-                        await self.writer.drain()
-                break
-        else:
-            self.send_error(404)
         self.write(None)
         self.buffer.flush()
         self.buffer.close()

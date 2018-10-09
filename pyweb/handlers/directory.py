@@ -1,13 +1,14 @@
 import os
 import html
 from urllib import parse
-from .base import require_fs, BaseHandler
+from .base import BaseHandler, prepare_fs, allowed_methods
 from ..utils import template
 
 __all__ = ['DirectoryHandler']
 
 class DirectoryHandler(BaseHandler):
-    @require_fs
+    @prepare_fs
+    @allowed_methods()
     async def __call__(self, context, options):
         if self.fs.filetype != 'dir':
             return

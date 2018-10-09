@@ -5,7 +5,7 @@ from ..utils import errors
 
 class Request:
     def __init__(self, reader, protocol_version,
-            keep_alive_timeout=120, env=()):
+            keep_alive_timeout=120, env={}):
         self.reader = reader
         self.protocol_version = protocol_version
         self.keep_alive = False
