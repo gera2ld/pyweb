@@ -1,0 +1,5 @@
+-i https://pypi.org/simple
+click==7.0
+gera2ld.pyserve==0.0.2
+jinja2==2.10
+markupsafe==1.0

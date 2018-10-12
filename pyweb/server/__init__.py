@@ -1,5 +1,5 @@
 import asyncio
-from pyserve import serve_forever
+from gera2ld.pyserve import serve_forever
 from ..utils import logger
 from .context import HTTPContext
 from .matcher import normalize_config

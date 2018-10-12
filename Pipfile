@@ -5,9 +5,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pyserve = {editable = true, git = "https://github.com/gera2ld/pyserve"}
 click = "*"
 "jinja2" = "*"
+"gera2ld.pyserve" = "*"
 
 [dev-packages]
 
