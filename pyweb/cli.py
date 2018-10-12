@@ -23,6 +23,7 @@ def main(bind, root):
         'port': port,
         'match': None,
         'handler': [
+            'proxy',
             {
                 'handler': 'fcgi',
                 'options': {

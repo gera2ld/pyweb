@@ -8,6 +8,7 @@ def error_handler(code):
         return handle
 
 handlers = {
+    'proxy': ProxyHandler(),
     'file': FileHandler(),
     'dir': DirectoryHandler(),
     'fcgi': FCGIHandler(),
@@ -108,9 +109,13 @@ def iter_handlers(request, config, options={}):
         for item in config:
             yield from iter_handlers(request, item, options)
     elif isinstance(config, dict):
-        port = config.get('port')
+        if request.method == 'CONNECT' or '://' in request.path:
+            host_ok = True
+        else:
+            port = config.get('port')
+            host_ok = port is None or request.port is None or request.port == port
         match = config.get('match')
         handler = config.get('handler')
         options = config.get('options')
-        if (port is None or request.port is None or request.port == port) and match_request(request, match):
+        if host_ok and match_request(request, match):
             yield from iter_handlers(request, handler, options)

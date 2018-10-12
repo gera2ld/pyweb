@@ -48,12 +48,12 @@ class HTTPContext:
         while self.keep_alive:
             try:
                 await self.handle_one_request()
-            except (asyncio.TimeoutError, ConnectionError):
-                break
+            except (TimeoutError, ConnectionError):
+                self.keep_alive = False
             except:
                 import traceback
                 traceback.print_exc()
-                break
+                self.keep_alive = False
             finally:
                 if self.request and self.request.requestline:
                     written = self.raw_writer.written if self.raw_writer else '-'
@@ -77,6 +77,8 @@ class HTTPContext:
                 self.keep_alive = False
                 return
             self.keep_alive = self.request.keep_alive
+            if self.request.method == 'CONNECT':
+                self.keep_alive = False
             for handle, options in iter_handlers(self.request, self.config):
                 self.logger.debug('get handler: %s, %s', handle, options)
                 gen = await handle(self, options)
@@ -117,7 +119,8 @@ class HTTPContext:
             elif connection == 'keep-alive':
                 self.keep_alive = True
 
-    def send_headers(self):
+    def check_headers(self):
+        if self.request.method == 'CONNECT': return
         if self.request.accept_encoding('gzip'):
             content_type = self.headers.get('content-type', '')
             gzip = self.config.get('gzip')
@@ -142,6 +145,9 @@ class HTTPContext:
             self.headers['content-encoding'] = 'gzip'
         if self.chunk_mode:
             self.headers['transfer-encoding'] = 'chunked'
+
+    def send_headers(self):
+        self.check_headers()
         self.headers.add_header('Server', self.version_string)
         self.headers.add_header('Date', time_utils.datetime_string())
         # send headers
@@ -155,7 +161,7 @@ class HTTPContext:
             writer = writers.GZipWriter(writer, self.logger)
         self.buffer = writer
 
-    def write(self, data):
+    def write(self, data, flush=False):
         if not self.headers_sent:
             self.send_headers()
         if self.request.method != 'HEAD' and data:
@@ -163,6 +169,8 @@ class HTTPContext:
                 data = data.encode('utf-8', 'ignore')
             if data:
                 self.buffer.write(data)
+            if flush:
+                self.buffer.flush()
 
     def set_status(self, code=200, message=None):
         self.status = code, message
