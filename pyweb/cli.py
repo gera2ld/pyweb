@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 """Console script for pyweb."""
+import os
 import sys
 import platform
 import click

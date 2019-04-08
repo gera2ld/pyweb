@@ -19,7 +19,10 @@ class HTTPDaemon:
             await handler.handle()
         host = config_item.get('host', '')
         port = config_item.get('port', 80)
-        server = await asyncio.start_server(handle, host, port, loop=self.loop)
+        if isinstance(port, str):
+            server = await asyncio.start_unix_server(handle, path=port, loop=self.loop)
+        else:
+            server = await asyncio.start_server(handle, host, port, loop=self.loop)
         self.servers.append(server)
 
     async def start_servers(self):

@@ -36,10 +36,18 @@ class HTTPContext:
         self.logger.setLevel(config.get('loglevel', logging.INFO))
         env = self.base_environ = {}
         env['GATEWAY_INTERFACE'] = 'CGI/1.1'
-        env['SERVER_ADDR'] = self.local_addr[0]
-        env['SERVER_PORT'] = str(self.local_addr[1])
-        env['REMOTE_ADDR'] = self.remote_addr[0]
-        env['REMOTE_PORT'] = str(self.remote_addr[1])
+        if isinstance(self.local_addr, str):
+            env['SERVER_ADDR'] = None
+            env['SERVER_PORT'] = self.local_addr
+        else:
+            env['SERVER_ADDR'] = self.local_addr[0]
+            env['SERVER_PORT'] = str(self.local_addr[1])
+        if isinstance(self.remote_addr, str):
+            env['REMOTE_ADDR'] = None
+            env['REMOTE_PORT'] = self.remote_addr
+        else:
+            env['REMOTE_ADDR'] = self.remote_addr[0]
+            env['REMOTE_PORT'] = str(self.remote_addr[1])
         env['CONTENT_LENGTH'] = ''
         env['SCRIPT_NAME'] = ''
         self.clean()
