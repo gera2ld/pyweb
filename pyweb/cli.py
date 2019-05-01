@@ -9,7 +9,6 @@ from . import __version__
 from .server import HTTPDaemon
 from .utils import logger, parse_addr
 
-
 @click.command()
 @click.option('-b', '--bind', default=':4000', help='the address to bind, default as `:4000`')
 @click.option('-r', '--root', default='.', help='the root directory of documents')
@@ -52,7 +51,6 @@ def main(bind, root):
     })
     server.serve()
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

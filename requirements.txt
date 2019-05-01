@@ -1,5 +1,5 @@
--i https://pypi.org/simple
+-i http://pypi.douban.com/simple
 click==7.0
 gera2ld.pyserve==0.0.2
-jinja2==2.10
-markupsafe==1.0
+jinja2==2.10.1
+markupsafe==1.1.1
