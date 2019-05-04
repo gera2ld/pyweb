@@ -1,13 +1,7 @@
-[[source]]
-# url = "https://pypi.org/simple"
-url = "http://pypi.douban.com/simple"
-verify_ssl = true
-name = "pypi"
-
 [packages]
 click = "*"
 "jinja2" = "*"
-"gera2ld.pyserve" = "*"
+gera2ld-pyserve = "*"
 
 [dev-packages]
 
