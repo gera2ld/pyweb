@@ -53,10 +53,8 @@ def prepare_fs(handle):
         return await handle(self, context, options)
     return wrapped_handle
 
-default_methods = {'HEAD', 'GET'}
-def allowed_methods(methods = ()):
+def allowed_methods(methods = ('HEAD', 'GET')):
     methods = set(methods)
-    methods.update(default_methods)
     def wrapper(handle):
         @functools.wraps(handle)
         async def wrapped_handle(self, context, options):
