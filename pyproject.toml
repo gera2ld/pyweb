@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "pyweb"
+version = "0.1.0"
+description = "A simple web server"
+authors = ["Gerald <gera2ld@163.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+click = "^7.0"
+jinja2 = "^2.10"
+gera2ld-pyserve = "^0.0.5"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
+
+[tool.poetry.scripts]
+start = "pyweb.cli:main"
