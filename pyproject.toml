@@ -8,7 +8,7 @@ authors = ["Gerald <gera2ld@163.com>"]
 python = "^3.7"
 click = "^7.0"
 jinja2 = "^2.10"
-gera2ld-pyserve = "^0.0.5"
+gera2ld-pyserve = "^0.0.6"
 
 [tool.poetry.dev-dependencies]
 

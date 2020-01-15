@@ -7,20 +7,18 @@ import platform
 import click
 from . import __version__
 from .server import HTTPDaemon
-from .utils import logger, parse_addr
+from .utils import logger
 
 @click.command()
 @click.option('-b', '--bind', default=':4000', help='the address to bind, default as `:4000`')
 @click.option('-r', '--root', default='.', help='the root directory of documents')
 def main(bind, root):
     """Start a web server with pyweb."""
-    host, port = parse_addr(bind, default=('', 4000))
     logger.info(
         'HTTP Server v%s/%s %s - by Gerald',
         __version__, platform.python_implementation(), platform.python_version())
     server = HTTPDaemon({
-        'host': host,
-        'port': port,
+        'bind': bind,
         'match': None,
         'handler': [
             'proxy',
